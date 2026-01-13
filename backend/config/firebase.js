@@ -22,7 +22,8 @@ if (!admin.apps.length) {
         const serviceAccountPath = path.join(__dirname, '../serviceAccountKey.json');
 
         let config = {
-            databaseURL: process.env.FIREBASE_DB_URL
+            databaseURL: process.env.FIREBASE_DB_URL,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "nagaralerthub-484121.firebasestorage.app"
         };
 
         if (fs.existsSync(serviceAccountPath)) {

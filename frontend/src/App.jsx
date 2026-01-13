@@ -30,6 +30,8 @@ import Broadcast from './pages/admin/Broadcast';
 import IncidentDetail from './pages/admin/IncidentDetail';
 import Tasks from './pages/admin/Tasks';
 import Settings from './pages/admin/Settings';
+import OfficerProfile from './pages/admin/OfficerProfile';
+import AdminNotifications from './pages/admin/Notifications';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const App = () => {
@@ -72,6 +74,8 @@ const App = () => {
           <Route path="/admin/incident/:id" element={<ProtectedRoute allowedRoles={['admin']}><IncidentDetail /></ProtectedRoute>} />
           <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={['admin']}><Tasks /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+          <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={['admin']}><OfficerProfile /></ProtectedRoute>} />
+          <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><AdminNotifications /></ProtectedRoute>} />
 
 
         </Routes>

@@ -7,8 +7,8 @@ export const uploadImage = async (file, path) => {
 
     try {
         const formData = new FormData();
-        formData.append('file', file);
         formData.append('path', path || 'general');
+        formData.append('file', file);
 
         const response = await fetch('http://127.0.0.1:5001/api/upload/image', {
             method: 'POST',

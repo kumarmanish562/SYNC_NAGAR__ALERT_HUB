@@ -50,7 +50,7 @@ const AdminMap = () => {
 
     return (
         <AdminLayout>
-            <div className="h-full flex flex-col gap-6">
+            <div className="h-[calc(100vh-150px)] flex flex-col gap-6">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Department Live Monitor</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

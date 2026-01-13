@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, X, Bell, Search, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const AdminTopbar = ({ toggleSidebar, isSidebarOpen }) => {
     const { currentUser } = useAuth();
@@ -33,10 +34,10 @@ const AdminTopbar = ({ toggleSidebar, isSidebarOpen }) => {
                     />
                 </div>
 
-                <button className="relative p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                <Link to="/admin/notifications" className="relative p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                     <Bell size={20} />
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
-                </button>
+                </Link>
 
                 <div className="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-slate-800">
                     <div className="text-right hidden sm:block">
