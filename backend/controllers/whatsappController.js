@@ -174,3 +174,10 @@ exports.handleWebhook = async (req, res) => {
         res.status(500).send("Error");
     }
 };
+
+module.exports = {
+    handleWebhook: exports.handleWebhook,
+    sendManualBroadcast: exports.sendManualBroadcast,
+    sendMessage,
+    broadcastTargetedAlert
+};

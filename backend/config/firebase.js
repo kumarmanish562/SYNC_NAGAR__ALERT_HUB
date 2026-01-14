@@ -23,7 +23,7 @@ if (!admin.apps.length) {
 
         let config = {
             databaseURL: process.env.FIREBASE_DB_URL,
-            storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "nagaralerthub-484121.firebasestorage.app"
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET
         };
 
         if (fs.existsSync(serviceAccountPath)) {

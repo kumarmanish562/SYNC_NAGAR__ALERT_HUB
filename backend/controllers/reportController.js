@@ -146,17 +146,33 @@ exports.getUserReports = async (req, res) => {
 
         const data = snapshot.val();
         const allReports = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-        console.log(`[BACKEND] Filtering ${allReports.length} reports for UID: ${uid}`);
 
+        // Robust Matching Logic
         const userReports = allReports.filter(r => {
-            const reportUserId = String(r.userId || "").toLowerCase().trim();
-            const targetUid = String(uid || "").toLowerCase().trim();
-            return reportUserId === targetUid;
+            if (!r.userId) return false;
+            const reportUserId = String(r.userId).trim();
+            const targetUid = String(uid).trim();
+
+            // 1. Direct Match
+            if (reportUserId === targetUid) return true;
+
+            // 2. Case Insensitive Match
+            if (reportUserId.toLowerCase() === targetUid.toLowerCase()) return true;
+
+            // 3. Fallback: Check if reportUserId is contained in targetUid or vice-versa (paranoid check for phone numbers vs ids)
+            // e.g. Phone number might be part of an ID string in some weird edge cases
+            // But main issue is usually undefined or type mismatch.
+
+            return false;
         });
 
-        console.log(`[BACKEND] Found ${userReports.length} matches.`);
+        console.log(`[BACKEND] Found ${userReports.length} matches for UID ${uid}.`);
 
-        const sortedReports = userReports.sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
+        const sortedReports = userReports.sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.timestamp || 0).getTime();
+            const timeB = new Date(b.createdAt || b.timestamp || 0).getTime();
+            return timeB - timeA;
+        });
 
         res.status(200).json({ reports: sortedReports });
 
