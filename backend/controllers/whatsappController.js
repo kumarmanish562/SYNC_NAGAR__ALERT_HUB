@@ -1,6 +1,23 @@
+const { analyzeImageForReport } = require('../services/aiService');
 const axios = require('axios');
 const { db } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
+
+// Helper to download media
+async function downloadMedia(url) {
+    try {
+        const config = { responseType: 'arraybuffer' };
+        if (process.env.WHAPI_TOKEN) {
+            config.headers = { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` };
+        }
+        const response = await axios.get(url, config);
+        const buffer = Buffer.from(response.data, 'binary');
+        return buffer.toString('base64');
+    } catch (error) {
+        console.error("Error downloading media:", error.message);
+        return null;
+    }
+}
 
 // Whapi Config - Fallback to hardcoded if env fails (for immediate reliability)
 const WHAPI_TOKEN = process.env.WHAPI_TOKEN
@@ -229,12 +246,35 @@ exports.handleWebhook = async (req, res) => {
             const isVideo = type === 'video';
             const mediaUrl = isVideo ? message.video?.link : message.image?.link;
 
-            await sendMessage(from, "🔍 Analyzing image... Please wait.");
+            await sendMessage(from, "🔍 Analyzing image for authenticity... Please wait.");
 
             let aiResult = null;
             if (!isVideo && mediaUrl) {
-                const { analyzeImageFromUrl } = require('../services/aiService');
-                aiResult = await analyzeImageFromUrl(mediaUrl);
+                // 1. Download Image
+                const imageBase64 = await downloadMedia(mediaUrl);
+
+                if (imageBase64) {
+                    // 2. Strict AI Forensic Check (Vertex AI)
+                    console.log(`[AI] Verifying image authenticity...`);
+                    const verification = await analyzeImageForReport(imageBase64);
+                    console.log("[AI RESULT]", verification);
+
+                    // 3. REJECT if Fake
+                    if (!verification.isReal) {
+                        await sendMessage(from,
+                            `⚠️ *Report Rejected*\n\nOur system detected this image might be fake or AI-generated: _${verification.fakeReason}_\n\nPlease upload a *real, original photo* taken at the location.`
+                        );
+                        return res.send('OK');
+                    }
+
+                    // 4. Accept if Real - Map to Report Data
+                    aiResult = {
+                        category: verification.issue || "General",
+                        description: verification.issue ? `Verified Issue: ${verification.issue}` : "Civic Report",
+                        priority: verification.severity || "Medium",
+                        confidence: 99
+                    };
+                }
             }
 
             const caption = (isVideo ? message.video?.caption : message.image?.caption) || message.text?.body || "Report via WhatsApp";
@@ -283,7 +323,9 @@ exports.handleWebhook = async (req, res) => {
             const deptKey = (newReport.department || "General").replace(/[\/\.#\$\[\]]/g, "_");
             await db.ref(`reports/by_department/${deptKey}/${reportId}`).set(newReport);
 
-            await sendMessage(from, `📸 *Image Received!*\n\nAI Detected: ${newReport.department}\n\n📍 *Please reply with the Location/Address of this incident to complete the report.*`);
+            await sendMessage(from,
+                `✅ *Verified & Accepted*\n\nIssue: ${newReport.department}\nSeverity: ${newReport.priority}\n\nYour report has been sent to the authorities!\n\n📍 *Action Required:* Please reply with the Location/Address to finalize.`
+            );
 
             return res.send('OK');
         }

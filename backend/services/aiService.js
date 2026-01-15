@@ -1,91 +1,83 @@
+const { VertexAI } = require('@google-cloud/vertexai');
 require('dotenv').config();
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const axios = require('axios');
 
-// Initialize Gemini
-// Ensure we use the API key from env
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Vertex AI
+const vertex_ai = new VertexAI({
+    project: process.env.GCP_PROJECT_ID,
+    location: process.env.GCP_LOCATION || 'us-central1'
+});
 
-/**
- * Fetches an image from a URL and converts it to a base64 string and mimeType.
- */
-async function fetchImageAsBase64(url) {
-    try {
-        const config = { responseType: 'arraybuffer' };
-        if (process.env.WHAPI_TOKEN) {
-            config.headers = { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` };
-        }
+// Use the stable model version requested
+const model = 'gemini-1.5-flash-001';
 
-        const response = await axios.get(url, config);
-        const buffer = Buffer.from(response.data, 'binary');
-        const mimeType = response.headers['content-type'] || 'image/jpeg';
-        const base64Data = buffer.toString('base64');
-        return { base64Data, mimeType };
-    } catch (error) {
-        console.error("Error fetching image from URL:", error.message);
-        throw new Error("Failed to download image from WhatsApp.");
-    }
-}
+// Instantiate the model
+const generativeModel = vertex_ai.getGenerativeModel({
+    model: model,
+    generationConfig: {
+        maxOutputTokens: 256,
+        temperature: 0.2, // Low temperature for strict/analytical results
+        responseMimeType: 'application/json',
+    },
+});
 
 /**
- * Analyzes an image using Gemini to detect civic issues.
- * Returns a JSON object with { isValid, category, description, confidence, etc. }
+ * Analyzes an image (Base64) using Vertex AI.
+ * @param {string} base64Image - The raw base64 string of the image
  */
-async function analyzeImageFromUrl(imageUrl) {
-    if (!process.env.GEMINI_API_KEY) {
-        console.error("Missing GEMINI_API_KEY");
-        return null;
-    }
-
+exports.analyzeImageForReport = async (base64Image) => {
     try {
-        console.log(`[AI Service] Fetching image from: ${imageUrl}`);
-        const { base64Data, mimeType } = await fetchImageAsBase64(imageUrl);
-
-        // Try primary model
-        let model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const prompt = `Analyze this civic issue image.
-        Categories: Police, Traffic, Fire, Medical, Municipal/Waste, Electricity, Water.
-        Output JSON ONLY:
-        {
-          "isValid": boolean, (true if it shows a real civic problem like garbage, pothole, accident, fire, street light issue, etc.)
-          "category": "String",
-          "description": "Short 1-sentence description",
-          "confidence": number (0-100),
-          "priority": "High" | "Medium" | "Low"
-        }`;
+        console.log(`[Vertex AI] Analyzing image (Base64)...`);
 
         const imagePart = {
             inlineData: {
-                data: base64Data,
-                mimeType: mimeType
+                data: base64Image,
+                mimeType: 'image/jpeg'
             }
         };
 
-        console.log("[AI Service] Sending to Gemini...");
-        const result = await model.generateContent([prompt, imagePart]);
-        const response = await result.response;
-        let text = response.text();
+        const prompt = `
+        You are a strict city administration AI. Analyze this image.
+        1. REALISM: Is this a real photo of a civic issue (pothole, garbage, etc.)?
+        2. FAKE CHECK: Reject if it's AI-generated, a screenshot, or a black screen.
+        
+        Output JSON ONLY:
+        {
+            "isReal": boolean, 
+            "fakeReason": "reason if fake, else null", 
+            "issue": "Short description of the issue or null",
+            "priority": "High/Medium/Low",
+            "confidence": number,
+            "category": "Road/Garbage/Water/Electricity/Other"
+        }`;
 
-        // Clean markdown
-        if (text.includes("```")) {
-            text = text.replace(/```\w*\n?|```/g, "").trim();
-        }
+        const request = {
+            contents: [{ role: 'user', parts: [imagePart, { text: prompt }] }]
+        };
 
-        console.log("[AI Service] Response:", text);
-        return JSON.parse(text);
+        const result = await generativeModel.generateContent(request);
+        const response = result.response;
+        let text = response.candidates[0].content.parts[0].text;
+
+        // Clean up markdown if present
+        text = text.replace(/```json|```/g, '').trim();
+        const jsonResult = JSON.parse(text);
+
+        return {
+            isReal: jsonResult.isReal || jsonResult.isValid,
+            fakeReason: jsonResult.fakeReason || (jsonResult.isValid ? null : "Verification failed"),
+            issue: jsonResult.issue || jsonResult.category,
+            severity: jsonResult.priority || "Medium"
+        };
 
     } catch (error) {
-        console.error("[AI Service] Error:", error.message);
-        // Fallback or return default error object
-        return {
-            isValid: true, // Default to true so admin sees it anyway
-            category: "General",
-            description: "AI Analysis Failed - Manual Review Required",
-            confidence: 0,
-            priority: "Medium"
-        };
-    }
-}
+        console.error("Vertex AI Connection Failed:", error.message);
 
-module.exports = { analyzeImageFromUrl };
+        if (error.message.includes('404')) {
+            console.error("⚠️ CRITICAL ERROR: 'Gemini 1.5 Flash' not enabled in Vertex AI Model Garden.");
+            // Fallback for dev testing if model is locked
+            return { isReal: false, fakeReason: "System Error: AI Model Not Enabled in Cloud Console" };
+        }
+
+        return { isReal: false, fakeReason: "System Error during verification" };
+    }
+};

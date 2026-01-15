@@ -1,8 +1,13 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { VertexAI } = require('@google-cloud/vertexai');
 const { db } = require('../config/firebase');
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Vertex AI
+const vertex_ai = new VertexAI({
+    project: process.env.GCP_PROJECT_ID,
+    location: process.env.GCP_LOCATION || 'us-central1'
+});
+const modelName = 'gemini-1.5-flash-001';
+const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
 
 const sanitizeKey = (key) => {
     if (!key) return "General";
@@ -23,12 +28,6 @@ exports.verifyReportImage = async (req, res) => {
 
     try {
         console.log("[AI] Analyzing image for type:", type);
-
-        // Use gemini-1.5-flash as requested by user or fallback to gemini-pro-vision for images
-        // Note: For images, 'gemini-pro-vision' is often the correct legacy name if 1.5 is failing.
-        // Let's try the user's specific request 'gemini-2.0-flash' if available, or 'gemini-1.5-flash'
-        // Verified working model via test script
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const prompt = `Analyze this image. Does it show a valid civic issue related to '${type}'? 
         If the issue is visible, set isValid to true. 
@@ -52,9 +51,13 @@ exports.verifyReportImage = async (req, res) => {
             },
         };
 
-        const result = await model.generateContent([prompt, imagePart]);
+        const request = {
+            contents: [{ role: 'user', parts: [imagePart, { text: prompt }] }]
+        };
+
+        const result = await generativeModel.generateContent(request);
         const response = await result.response;
-        const text = response.text();
+        const text = response.candidates[0].content.parts[0].text;
         console.log("[AI RAW RESPONSE]:", text);
 
         // More robust JSON extraction

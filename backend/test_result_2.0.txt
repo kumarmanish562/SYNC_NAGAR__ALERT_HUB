@@ -1,2 +1,0 @@
-FAIL: AI Service Failed: [VertexAI.ClientError]: got status: 404 Not Found. {"error":{"code":404,"message":"Publisher Model `projects/nagaralerthub-484121/locations/us-central1/publishers/google/models/gemini-2.0-pro` not found.","status":"NOT_FOUND"}}
-{}
