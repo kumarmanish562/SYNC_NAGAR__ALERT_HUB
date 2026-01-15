@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Share2, CheckCircle, AlertTriangle, ThumbsUp } from 'lucide-react';
+import { MapPin, Clock, Share2, CheckCircle, AlertTriangle, ThumbsUp, ExternalLink } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { getDatabase, ref, onValue } from "firebase/database";
@@ -31,13 +31,15 @@ const ReportDetail = () => {
                     const timestamp = r.createdAt || r.timestamp;
                     setReport({
                         ...r,
-                        lat: r.location?.lat || 0,
-                        lng: r.location?.lng || 0,
+                        ticketId: r.id ? `#${r.id.slice(-6).toUpperCase()}` : '#UNKNOWN',
+                        address: r.location?.address || "Address not available",
+                        lat: r.location?.lat ? parseFloat(r.location.lat) : 0,
+                        lng: r.location?.lng ? parseFloat(r.location.lng) : 0,
                         timeFormatted: new Date(timestamp).toLocaleString(),
                         timeline: [
-                            { title: 'Report Submitted', time: new Date(timestamp).toLocaleTimeString(), active: true, current: r.status === 'Pending' },
-                            { title: 'In Progress', time: '...', active: r.status !== 'Pending', current: r.status === 'In Progress' },
-                            { title: 'Resolved', time: '...', active: r.status === 'Resolved', current: r.status === 'Resolved' }
+                            { title: 'Report Submitted', time: new Date(timestamp).toLocaleString(), active: true, current: r.status === 'Pending' },
+                            { title: 'In Progress', time: r.status !== 'Pending' ? 'Verified by Admin' : 'Pending Review', active: r.status !== 'Pending', current: r.status === 'In Progress' },
+                            { title: 'Resolved', time: r.status === 'Resolved' ? 'Issue Fixed' : 'Waiting for Resolution', active: r.status === 'Resolved', current: r.status === 'Resolved' }
                         ]
                     });
                 }
@@ -57,7 +59,6 @@ const ReportDetail = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
 
                     {/* Left Side: Visuals (Image & Map) */}
-                    {/* Left Side: Visuals (Image & Map) */}
                     <div className="relative h-[400px] lg:h-auto min-h-full flex flex-col">
                         {/* Image Half */}
                         <div className="h-1/2 relative">
@@ -70,17 +71,33 @@ const ReportDetail = () => {
                         </div>
 
                         {/* Map Half */}
-                        <div className="h-1/2 relative bg-slate-100">
-                            {isLoaded ? (
-                                <GoogleMap
-                                    mapContainerStyle={{ width: '100%', height: '100%' }}
-                                    center={{ lat: report.lat, lng: report.lng }}
-                                    zoom={15}
-                                    options={{ disableDefaultUI: true, zoomControl: true }}
-                                >
-                                    <Marker position={{ lat: report.lat, lng: report.lng }} />
-                                </GoogleMap>
-                            ) : <div>Loading Map...</div>}
+                        <div className="h-1/2 relative bg-slate-100 group">
+                            {isLoaded && report.lat !== 0 ? (
+                                <>
+                                    <GoogleMap
+                                        mapContainerStyle={{ width: '100%', height: '100%' }}
+                                        center={{ lat: report.lat, lng: report.lng }}
+                                        zoom={15}
+                                        options={{ disableDefaultUI: true, zoomControl: true }}
+                                    >
+                                        <Marker position={{ lat: report.lat, lng: report.lng }} />
+                                    </GoogleMap>
+
+                                    {/* Open in Maps Overlay */}
+                                    <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${report.lat},${report.lng}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="absolute bottom-4 right-4 bg-white/90 backdrop-blur text-blue-600 px-3 py-2 rounded-xl text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 z-10"
+                                    >
+                                        <ExternalLink size={14} /> Open in Maps
+                                    </a>
+                                </>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-slate-400 text-sm font-bold bg-slate-50">
+                                    {report.lat !== 0 ? "Loading Map..." : "Location Data Unavailable"}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -92,12 +109,12 @@ const ReportDetail = () => {
                                 <div>
                                     <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{report.type}</h1>
                                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
-                                        <MapPin size={18} className="text-blue-500" /> {report.lat.toFixed(6)}, {report.lng.toFixed(6)}
+                                        <MapPin size={18} className="text-blue-500" /> {report.address}
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-sm font-bold text-slate-400">Ticket ID</div>
-                                    <div className="text-xl font-mono font-bold text-slate-900 dark:text-slate-200">#{report.id}</div>
+                                    <div className="text-xl font-mono font-bold text-slate-900 dark:text-slate-200">{report.ticketId}</div>
                                 </div>
                             </div>
                             <div className="flex gap-4">

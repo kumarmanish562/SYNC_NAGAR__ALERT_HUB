@@ -1,43 +1,91 @@
-require('dotenv').config(); // Ensure env vars are loaded
-// 1. Import the library
-const { VertexAI } = require('@google-cloud/vertexai');
+require('dotenv').config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require('axios');
 
-// 2. Setup Configuration
-// Tip: Put these in your .env file!
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT;
-const LOCATION = 'us-central1';
+// Initialize Gemini
+// Ensure we use the API key from env
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// 3. Initialize Vertex AI
-const vertex_ai = new VertexAI({
-    project: PROJECT_ID,
-    location: LOCATION,
-    // The SDK automatically looks for "GOOGLE_APPLICATION_CREDENTIALS" env variable
-    // pointing to your serviceAccountKey.json
-});
-
-// 4. Create the Model Reference (Gemini Pro)
-const model = vertex_ai.preview.getGenerativeModel({
-    model: 'gemini-pro' // or 'gemini-1.5-flash' for faster/cheaper results
-});
-
-// Function to Test it
-async function generateContent() {
+/**
+ * Fetches an image from a URL and converts it to a base64 string and mimeType.
+ */
+async function fetchImageAsBase64(url) {
     try {
-        const prompt = "Write a short safety warning for a reported pothole.";
+        const config = { responseType: 'arraybuffer' };
+        if (process.env.WHAPI_TOKEN) {
+            config.headers = { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` };
+        }
 
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const text = response.candidates[0].content.parts[0].text;
-
-        console.log("🤖 AI Response:", text);
+        const response = await axios.get(url, config);
+        const buffer = Buffer.from(response.data, 'binary');
+        const mimeType = response.headers['content-type'] || 'image/jpeg';
+        const base64Data = buffer.toString('base64');
+        return { base64Data, mimeType };
     } catch (error) {
-        console.error("AI Error:", error);
+        console.error("Error fetching image from URL:", error.message);
+        throw new Error("Failed to download image from WhatsApp.");
     }
 }
 
-// Run the test
-if (require.main === module) {
-    generateContent();
+/**
+ * Analyzes an image using Gemini to detect civic issues.
+ * Returns a JSON object with { isValid, category, description, confidence, etc. }
+ */
+async function analyzeImageFromUrl(imageUrl) {
+    if (!process.env.GEMINI_API_KEY) {
+        console.error("Missing GEMINI_API_KEY");
+        return null;
+    }
+
+    try {
+        console.log(`[AI Service] Fetching image from: ${imageUrl}`);
+        const { base64Data, mimeType } = await fetchImageAsBase64(imageUrl);
+
+        // Try primary model
+        let model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `Analyze this civic issue image.
+        Categories: Police, Traffic, Fire, Medical, Municipal/Waste, Electricity, Water.
+        Output JSON ONLY:
+        {
+          "isValid": boolean, (true if it shows a real civic problem like garbage, pothole, accident, fire, street light issue, etc.)
+          "category": "String",
+          "description": "Short 1-sentence description",
+          "confidence": number (0-100),
+          "priority": "High" | "Medium" | "Low"
+        }`;
+
+        const imagePart = {
+            inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+            }
+        };
+
+        console.log("[AI Service] Sending to Gemini...");
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        let text = response.text();
+
+        // Clean markdown
+        if (text.includes("```")) {
+            text = text.replace(/```\w*\n?|```/g, "").trim();
+        }
+
+        console.log("[AI Service] Response:", text);
+        return JSON.parse(text);
+
+    } catch (error) {
+        console.error("[AI Service] Error:", error.message);
+        // Fallback or return default error object
+        return {
+            isValid: true, // Default to true so admin sees it anyway
+            category: "General",
+            description: "AI Analysis Failed - Manual Review Required",
+            confidence: 0,
+            priority: "Medium"
+        };
+    }
 }
 
-module.exports = { generateContent, model };
+module.exports = { analyzeImageFromUrl };

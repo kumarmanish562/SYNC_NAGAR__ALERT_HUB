@@ -1,0 +1,11 @@
+[dotenv@17.2.3] injecting env (24) from .env -- tip: ≡ƒöÉ encrypt with Dotenvx: https://dotenvx.com
+
+--- TEST OPTION 1: VERTEX AI ---
+≡ƒôñ Vertex: Sending prompt...
+Γ¥î VERTEX FAILED: [VertexAI.ClientError]: got status: 404 Not Found. {"error":{"code":404,"message":"Publisher Model `projects/nagaralerthub-484121/locations/us-central1/publishers/google/models/gemini-1.5-flash-001` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions","status":"NOT_FOUND"}}
+
+--- TEST OPTION 2: API KEY ---
+≡ƒôñ API Key: Sending prompt...
+Γ¥î API KEY FAILED: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent: [401 Unauthorized] API keys are not supported by this API. Expected OAuth2 access token or other authentication credentials that assert a principal. See https://cloud.google.com/docs/authentication [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CREDENTIALS_MISSING","domain":"googleapis.com","metadata":{"method":"google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent","service":"generativelanguage.googleapis.com"}}]
+
+>>> BOTH FAILED. Check Billing (Vertex) or 'Generative Language API' (API Key).

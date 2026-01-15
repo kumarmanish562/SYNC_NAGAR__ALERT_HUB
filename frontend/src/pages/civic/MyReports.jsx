@@ -29,7 +29,13 @@ const MyReports = () => {
                         id: r.id,
                         type: r.type,
                         location: r.location?.address || `${r.location?.lat?.toFixed(4)}, ${r.location?.lng?.toFixed(4)}`,
-                        date: new Date(r.createdAt || r.timestamp).toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' }),
+                        date: new Date(r.createdAt || r.timestamp).toLocaleString("en-US", {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }),
                         status: r.status,
                         severity: r.priority || 'Normal'
                     })));

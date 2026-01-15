@@ -259,12 +259,21 @@ const IncidentDetail = () => {
                                     </div>
 
                                     {report.status === 'Accepted' && (
-                                        <button
-                                            onClick={() => navigate('/admin/broadcast', { state: { incidentId: cleanId } })}
-                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all"
-                                        >
-                                            <Send size={18} /> Trigger Broadcast
-                                        </button>
+                                        <>
+                                            <button
+                                                onClick={() => handleAction('Resolved')}
+                                                className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-green-600/20 flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                <CheckCircle size={18} /> Mark Fixed (Resolved)
+                                            </button>
+
+                                            <button
+                                                onClick={() => navigate('/admin/broadcast', { state: { incidentId: cleanId } })}
+                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                <Send size={18} /> Trigger Broadcast
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             ) : (

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { getDatabase, ref, onValue, query, limitToLast, orderByChild } from "firebase/database";
 import { auth } from '../../services/firebase';
+import SurvivalChart from '../../components/SurvivalChart';
 
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,6 +12,7 @@ const Dashboard = () => {
     const { currentUser } = useAuth();
     const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
     const [recentReports, setRecentReports] = useState([]);
+    const [nearbyReports, setNearbyReports] = useState([]);
 
     useEffect(() => {
         const db = getDatabase(auth.app);
@@ -21,16 +23,41 @@ const Dashboard = () => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 const reportsArray = Object.values(data);
-                const pending = reportsArray.filter(r => r.status === 'Pending').length;
-                const resolved = reportsArray.filter(r => r.status === 'Resolved').length;
-                setStats({ total: reportsArray.length, pending, resolved });
-                const sorted = reportsArray.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+
+                // Filter specifically for the current user (Private Dashboard)
+                const userReports = reportsArray.filter(r => {
+                    const cleanMobile = currentUser?.mobile?.replace(/\D/g, '') || "";
+                    const reportUser = (r.userId || "").replace(/\D/g, ""); // Normalize if phone
+                    return r.userId === currentUser?.uid || (cleanMobile && reportUser.includes(cleanMobile));
+                });
+
+                const pending = userReports.filter(r => r.status === 'Pending').length;
+                const resolved = userReports.filter(r => r.status === 'Resolved' || r.status === 'Accepted').length;
+                setStats({ total: userReports.length, pending, resolved });
+
+                const sorted = userReports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
                 setRecentReports(sorted);
             }
         });
 
+        // 2. Fetch Nearby Reports (Hackathon Feature)
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                try {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(`http://127.0.0.1:5001/api/reports/nearby?lat=${latitude}&lng=${longitude}&radius=5`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setNearbyReports(data.reports || []);
+                    }
+                } catch (e) {
+                    console.error("Nearby Fetch Error", e);
+                }
+            }, (err) => console.log("Geo Denied", err));
+        }
+
         return () => unsubscribeReports();
-    }, []);
+    }, [currentUser]);
 
     // Points now come directly from AuthContext
     const userPoints = currentUser?.points || 0;
@@ -92,15 +119,46 @@ const Dashboard = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Nearby Alerts (Geo Feature) */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                        <h2 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <AlertTriangle size={18} className="text-orange-500" /> Nearby Alerts (5km Radius)
+                        </h2>
+                        <div className="space-y-4">
+                            {nearbyReports.length > 0 ? (
+                                nearbyReports.slice(0, 3).map(report => (
+                                    <ActivityRow
+                                        key={report.id}
+                                        icon="📍"
+                                        title={report.type || 'Issue'}
+                                        loc={`${report.distance} km away`}
+                                        status={report.status || 'Active'}
+                                        time="Right Now"
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-slate-400 text-sm">Safe Zone! No alerts nearby.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
                 {/* Right Col */}
-                <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-8 text-white shadow-xl flex flex-col justify-between">
-                    <div>
-                        <div className="text-xs font-bold opacity-80 uppercase tracking-widest mb-1">Your Impact</div>
-                        <div className="text-3xl font-bold mb-4">{userPoints > 1000 ? 'Gold Tier' : 'Silver Tier'}</div>
-                        <div className="text-5xl font-black mb-6">{userPoints} <span className="text-lg">Pts</span></div>
+                <div className="flex flex-col gap-6">
+                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-8 text-white shadow-xl flex flex-col justify-between min-h-[220px]">
+                        <div>
+                            <div className="text-xs font-bold opacity-80 uppercase tracking-widest mb-1">Your Impact</div>
+                            <div className="text-3xl font-bold mb-4">{userPoints > 1000 ? 'Gold Tier' : 'Silver Tier'}</div>
+                            <div className="text-5xl font-black mb-6">{userPoints} <span className="text-lg">Pts</span></div>
+                        </div>
+                        <Link to="/leaderboard" className="block w-full py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl text-center font-bold text-sm transition-colors">View Leaderboard</Link>
                     </div>
-                    <Link to="/leaderboard" className="block w-full py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl text-center font-bold text-sm transition-colors">View Leaderboard</Link>
+
+                    {/* Survival Kit Chart */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 h-72">
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-2 text-sm uppercase tracking-wider">My Stats</h3>
+                        <SurvivalChart data={[stats.resolved, stats.pending, Math.max(0, stats.total - stats.resolved - stats.pending)]} />
+                    </div>
                 </div>
             </div>
         </CivicLayout>

@@ -83,27 +83,47 @@ export default function Register() {
         try {
             // Mock Registration via Context
             const result = await register({
-                email: formData.email,
-                password: formData.password, // Required for backend auth
-                firstName: formData.firstName,
-                lastName: formData.lastName,
-                mobile: formData.mobile,
-                address: userType === 'citizen' ? address : null,
+                email: formData.email.trim(),
+                password: formData.password.trim(), // Ensure password is trimmed to match Login logic
+                firstName: formData.firstName.trim(),
+                lastName: formData.lastName.trim(),
+                mobile: formData.mobile.trim(),
+                address: userType === 'citizen' ? address.trim() : null,
+                city: userType === 'citizen' ? (formData.city ? formData.city.trim() : null) : null,
                 role: userType,
                 department: formData.department
             });
 
-            toast.success(`Welcome, ${formData.firstName}! Account created. Please verify your details.`);
-            // Navigate to Verification Page with user details
-            navigate('/verify-otp', {
-                state: {
-                    email: formData.email,
-                    mobile: formData.mobile,
-                    address: userType === 'citizen' ? address : null,
-                    userType: userType,
-                    uid: result.uid
+            // Request WhatsApp OTP immediately after registration
+            try {
+                if (userType === 'citizen' && formData.mobile) {
+                    await fetch('http://127.0.0.1:5001/api/auth/send-otp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'whatsapp', contact: formData.mobile })
+                    });
+                    toast.success("OTP sent to your WhatsApp!");
                 }
-            });
+            } catch (otpErr) {
+                console.error("OTP Send Error:", otpErr);
+                // Don't block registration success, just warn
+                toast.error("Could not send WhatsApp OTP automatically.");
+            }
+
+            toast.success(`User Registered Successfully! Welcome, ${formData.firstName}.`);
+
+            // Small delay to let user see the success message
+            setTimeout(() => {
+                navigate('/verify-otp', {
+                    state: {
+                        email: formData.email,
+                        mobile: formData.mobile,
+                        address: userType === 'citizen' ? address : null,
+                        userType: userType,
+                        uid: result.uid
+                    }
+                });
+            }, 1000);
 
         } catch (err) {
             console.error(err);
@@ -221,8 +241,9 @@ export default function Register() {
                             {userType === 'citizen' ? (
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-end"><label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Address</label><button type="button" onClick={handleLocation} disabled={locationLoading} className="text-xs text-blue-600 font-medium">{locationLoading ? "Locating..." : "Use Current Location"}</button></div>
-                                    <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter full address" className={`block w-full px-4 py-3 border ${errors.address ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-lg bg-slate-50 dark:bg-slate-800/50 dark:text-white`} />
+                                    <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Full Address with City, State" className={`block w-full px-4 py-3 border ${errors.address ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-lg bg-slate-50 dark:bg-slate-800/50 dark:text-white`} />
                                     {errors.address && <p className="text-xs text-red-500">{errors.address}</p>}
+                                    <input type="text" value={formData.city || ''} onChange={(e) => setFormData({ ...formData, city: e.target.value })} placeholder="City (e.g. Bhilai)" className="mt-2 block w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 dark:text-white" />
                                 </div>
                             ) : (
                                 <div className="space-y-2">

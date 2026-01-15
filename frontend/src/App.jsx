@@ -20,6 +20,7 @@ import Notifications from './pages/civic/Notifications';
 import AboutStats from './pages/civic/AboutStats';
 import WhatsAppGuide from './pages/civic/WhatsAppGuide';
 import ReportDetail from './pages/civic/ReportDetail';
+import Achievements from './pages/civic/Achievements';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -60,6 +61,7 @@ const App = () => {
 
           <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
           <Route path="/civic/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/civic/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/civic/stats" element={<ProtectedRoute><AboutStats /></ProtectedRoute>} />
           <Route path="/civic/guide" element={<ProtectedRoute><WhatsAppGuide /></ProtectedRoute>} />

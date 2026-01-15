@@ -48,6 +48,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // Enable WhatsApp Controller Logic
 
 // 2. Health Check
 app.get('/', (req, res) => {
@@ -119,152 +120,9 @@ async function analyzeImage(imageUrl) {
 }
 
 // 3. Main Webhook Handler
-app.post(/(.*)/, async (req, res) => {
-    res.status(200).send('OK');
-
-    const data = req.body;
-
-    if (!data.messages) return;
-
-    for (const message of data.messages) {
-        if (!message) continue;
-
-        const from = message.from;
-        const senderNumber = from.split('@')[0];
-        const type = message.type;
-        const body = message.text?.body || "";
-
-        console.log(`📩 Message from ${senderNumber} [Type: ${type}]`);
-
-        // --- 1. ADMIN COMMANDS (VERIFY / REJECT) ---
-        if (senderNumber === ADMIN_NUMBER || from.includes(ADMIN_NUMBER)) {
-            if (body.startsWith("VERIFY")) {
-                const reportId = body.split(" ")[1];
-                if (reportId) {
-                    await db.ref(`reports/${reportId}`).update({ status: 'Accepted' });
-                    const reportSnap = await db.ref(`reports/${reportId}`).once('value');
-                    const report = reportSnap.val();
-                    await sendMessage(from, `✅ Report ${reportId} accepted.`);
-
-                    // TARGETED BROADCAST
-                    const address = report?.location?.address || "";
-                    const targetArea = address.split(',')[1] || address.split(',')[0] || "General";
-                    await broadcastTargetedAlert(targetArea.trim(), `🚨 *High Priority Alert in ${targetArea}*\n\nAdmin has verified a report (ID: ${reportId.slice(0, 6)}). Emergency teams dispatched.`);
-                }
-                continue;
-            } else if (body.startsWith("REJECT")) {
-                const reportId = body.split(" ")[1];
-                if (reportId) {
-                    await db.ref(`reports/${reportId}`).update({ status: 'Rejected' });
-                    await sendMessage(from, `❌ Report ${reportId} rejected.`);
-                }
-                continue;
-            }
-        }
-
-        // --- 2. CITIZEN REPORT FLOW (IMAGE) ---
-        if (type === 'image') {
-            const originalMediaUrl = message.image?.link;
-            const caption = message.image?.caption || "Report via WhatsApp";
-
-            // Use PROXY URL for Frontend (Solves Image Loading Issues)
-            // We save the 'localhost' link so the frontend can just load it directly.
-            const serverBaseUrl = `http://localhost:${PORT}`;
-            const proxyUrl = `${serverBaseUrl}/api/proxy-image?url=${encodeURIComponent(originalMediaUrl)}`;
-
-            // Send "Analyzing" message immediately
-            await sendMessage(from, "🤖 Analyzing image... Please wait.");
-
-            // AI Analysis (Pass original URL to function which handles auth)
-            let aiData = null;
-            if (originalMediaUrl) {
-                aiData = await analyzeImage(originalMediaUrl);
-            }
-
-            const reportId = uuidv4();
-            const newReport = {
-                id: reportId,
-                type: aiData?.title || 'General Issue', // Improved Fallback
-                description: aiData?.description || caption,
-                imageUrl: proxyUrl, // <--- SAVING PROXY URL HERE
-                originalImageUrl: originalMediaUrl, // Backup
-                mediaType: 'image',
-                department: aiData?.department || 'Municipal',
-                status: 'Pending',
-                priority: aiData?.priority || 'Medium',
-                aiAnalysis: aiData?.description,
-                aiConfidence: aiData?.confidence || 0,
-                timestamp: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
-                source: 'WhatsApp',
-                userId: senderNumber,
-                userName: message.from_name || "Citizen (WhatsApp)",
-                location: {
-                    address: 'Location Pending...',
-                    lat: 0,
-                    lng: 0
-                }
-            };
-
-            // Save to DB
-            await db.ref(`reports/${reportId}`).set(newReport);
-
-            // Send Confirmation
-            let replyText = `✅ Report Received!\n🆔 ID: ${reportId}\n`;
-            if (aiData) {
-                replyText += `🧐 *AI Detected:* ${aiData.title}\n📊 *Severity:* ${aiData.priority}\n🏢 *Department:* ${aiData.department}\n`;
-            } else {
-                replyText += `⚠️ AI could not analyze the image (Secure Link), but report is saved.\n`;
-            }
-            replyText += `\n📍 *IMPORTANT: Please tap 'Paperclip' > 'Location' > 'Share Current Location' to complete report.*`;
-
-            await sendMessage(from, replyText);
-
-            // Notify Admin
-            if (ADMIN_NUMBER) {
-                await sendMessage(ADMIN_NUMBER, `🚨 New Report (Waiting loc)\nID: ${reportId}\nType: ${newReport.type}`);
-            }
-        }
-
-        // --- 3. LOCATION HANDLER ---
-        else if (type === 'location') {
-            const lat = message.location.latitude;
-            const lng = message.location.longitude;
-            const address = message.location.name || message.location.address || `${lat}, ${lng}`;
-
-            // Find the most recent PENDING report by this user
-            const snapshot = await db.ref('reports')
-                .orderByChild('userId')
-                .equalTo(senderNumber)
-                .limitToLast(1)
-                .once('value');
-
-            if (snapshot.exists()) {
-                const reports = snapshot.val();
-                const reportId = Object.keys(reports)[0];
-
-                // Update Location
-                await db.ref(`reports/${reportId}/location`).set({
-                    lat,
-                    lng,
-                    address
-                });
-
-                await sendMessage(from, `📍 Location attached to Report #${reportId.slice(0, 6)}.\n\nThank you for helping improve our city! 🌟`);
-
-            } else {
-                await sendMessage(from, "📍 Location received, but no active report found. Please send a photo of the issue first.");
-            }
-        }
-
-        // --- 4. TEXT HANDLER ---
-        else if (type === 'text') {
-            if (body.toLowerCase().includes('hi')) {
-                await sendMessage(from, `👋 Namaste from Nagar Alert Hub!\n\nTo report an issue:\n1. Send a 📸 *Photo*.\n2. Wait for AI.\n3. Share 📍 *Location*.`);
-            }
-        }
-    }
-});
+// REMOVED: Legacy inline handler. All logic now served via /api/whatsapp/webhook in routes/whatsappRoutes.js
+// This prevents "Headers Sent" and duplicate processing errors.
+// app.post(...) block removed.
 
 // Global Error Handler
 app.use((err, req, res, next) => {

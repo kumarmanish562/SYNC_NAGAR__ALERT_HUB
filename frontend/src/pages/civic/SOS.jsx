@@ -3,11 +3,14 @@ import { motion } from 'framer-motion';
 import { Phone, Shield, AlertTriangle, Siren, CheckCircle, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
+import { useAuth } from '../../context/AuthContext';
 
 const SOS = () => {
+    const { currentUser } = useAuth();
     const navigate = useNavigate();
     const [countdown, setCountdown] = useState(null);
     const [active, setActive] = useState(false);
+    const [sentLocation, setSentLocation] = useState(null);
 
     useEffect(() => {
         let timer;
@@ -16,14 +19,48 @@ const SOS = () => {
         } else if (active && countdown === 0) {
             // Trigger SOS
             setActive(false);
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    setSentLocation(loc);
+
+                    // Create Critical Report to trigger Prediction 3 & Map Blink & Email
+                    try {
+                        const reportData = {
+                            userId: currentUser?.uid || 'Anonymous',
+                            type: 'SOS Emergency', // Critical keywords
+                            description: 'User activated Emergency SOS beacon. Immediate assistance required.',
+                            department: 'Police', // Forces Critical handling
+                            priority: 'Critical',
+                            status: 'Pending',
+                            image: null,
+                            location: {
+                                lat: loc.lat.toString(),
+                                lng: loc.lng.toString(),
+                                address: `SOS Signal: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`
+                            },
+                        };
+
+                        await fetch('http://127.0.0.1:5001/api/reports/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(reportData)
+                        });
+                        console.log("SOS Alert Broadcasted to System");
+                    } catch (err) {
+                        console.error("SOS Broadcast Failed:", err);
+                    }
+                });
+            }
         }
         return () => clearTimeout(timer);
-    }, [active, countdown]);
+    }, [active, countdown, currentUser]);
 
     const handleSOSClick = () => {
         if (!active) {
             setActive(true);
             setCountdown(5);
+            setSentLocation(null);
         } else {
             setActive(false);
             setCountdown(null);
@@ -101,10 +138,17 @@ const SOS = () => {
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="absolute bottom-12 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-8 py-4 rounded-xl font-bold flex items-center gap-3 text-lg"
+                            className="absolute bottom-12 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-8 py-4 rounded-xl font-bold flex flex-col items-center gap-1 text-lg text-center"
                         >
-                            <CheckCircle size={24} />
-                            Alert Sent Successfully! Staying silent...
+                            <div className="flex items-center gap-2">
+                                <CheckCircle size={24} />
+                                Alert Sent Successfully!
+                            </div>
+                            {sentLocation && (
+                                <span className="text-sm font-normal opacity-80">
+                                    Location Shared: {sentLocation.lat.toFixed(5)}, {sentLocation.lng.toFixed(5)}
+                                </span>
+                            )}
                         </motion.div>
                     )}
                 </div>

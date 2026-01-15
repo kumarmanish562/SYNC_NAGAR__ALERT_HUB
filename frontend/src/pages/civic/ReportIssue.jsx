@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, MapPin, CheckCircle, AlertTriangle, Trash2, Lightbulb, Droplets, X, Loader2, Upload } from 'lucide-react';
+import { Camera, MapPin, CheckCircle, AlertTriangle, Trash2, Lightbulb, Droplets, X, Loader2, Upload, Search, Flame, Stethoscope } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { verifyImageWithAI, submitReportToBackend } from '../../services/backendService';
@@ -20,7 +20,7 @@ const ReportIssue = () => {
     const [aiResult, setAiResult] = useState(null);
     const [category, setCategory] = useState(null);
     const [department, setDepartment] = useState('');
-    const [location, setLocation] = useState({ lat: 22.5726, lng: 88.3639, address: 'Fetching location...' });
+    const [location, setLocation] = useState({ lat: null, lng: null, address: 'Detecting location...' });
     const [map, setMap] = useState(null);
     const [searchResult, setSearchResult] = useState(null);
 
@@ -30,6 +30,7 @@ const ReportIssue = () => {
         libraries
     });
 
+    // Real-time Geolocation on Mount
     React.useEffect(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -38,17 +39,21 @@ const ReportIssue = () => {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude
                     };
-                    setLocation(prev => ({ ...prev, ...pos }));
-                    // Attempt fetch, but if script isn't loaded, Effect below will catch it
+                    setLocation(prev => ({ ...prev, ...pos, address: 'Fetching address...' }));
+
                     if (window.google?.maps?.Geocoder) {
                         fetchAddress(pos.lat, pos.lng);
                     }
                 },
                 (error) => {
                     console.error("Error getting location:", error);
-                    setLocation({ lat: 23.3441, lng: 85.3096, address: 'Ranchi, Jharkhand (Default)' }); // Ranchi Coordinates
-                }
+                    toast.error("Location access denied. Please set location manually.");
+                    setLocation({ lat: 21.2514, lng: 81.6296, address: 'Location Unavailable' }); // Fallback to Central India
+                },
+                { enableHighAccuracy: true }
             );
+        } else {
+            setLocation({ lat: 21.2514, lng: 81.6296, address: 'Location Not Supported' });
         }
     }, []);
 
@@ -229,10 +234,10 @@ const ReportIssue = () => {
                             )}
 
                             <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-xl relative overflow-hidden">
-                                {isLoaded ? (
+                                {isLoaded && location.lat ? (
                                     <GoogleMap
                                         mapContainerStyle={{ width: '100%', height: '100%' }}
-                                        center={{ lat: location.lat || 22.5726, lng: location.lng || 88.3639 }}
+                                        center={{ lat: location.lat, lng: location.lng }}
                                         zoom={15}
                                         onLoad={onMapLoad}
                                         options={{
@@ -242,14 +247,15 @@ const ReportIssue = () => {
                                         }}
                                     >
                                         <Marker
-                                            position={{ lat: location.lat || 22.5726, lng: location.lng || 88.3639 }}
+                                            position={{ lat: location.lat, lng: location.lng }}
                                             draggable={true}
                                             onDragEnd={onMarkerDragEnd}
                                         />
                                     </GoogleMap>
                                 ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <Loader2 className="animate-spin text-slate-400" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                                        <Loader2 className="animate-spin mb-2" />
+                                        <span className="text-xs font-bold">Detecting your location...</span>
                                     </div>
                                 )}
 
@@ -268,26 +274,77 @@ const ReportIssue = () => {
                                     <select
                                         required
                                         value={department}
-                                        onChange={(e) => setDepartment(e.target.value)}
+                                        onChange={(e) => {
+                                            setDepartment(e.target.value);
+                                            setCategory(null); // Reset category on department change
+                                        }}
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 dark:text-slate-300"
                                     >
                                         <option value="">Select Department</option>
-                                        <option value="Police">Police</option>
-                                        <option value="Traffic">Traffic</option>
-                                        <option value="Fire & Safety">Fire & Safety</option>
-                                        <option value="Medical/Ambulance">Medical/Ambulance</option>
                                         <option value="Municipal/Waste">Municipal/Waste</option>
                                         <option value="Electricity Board">Electricity Board</option>
                                         <option value="Water Supply">Water Supply</option>
+                                        <option value="Traffic">Traffic</option>
+                                        <option value="Police">Police</option>
+                                        <option value="Fire & Safety">Fire & Safety</option>
+                                        <option value="Medical/Ambulance">Medical/Ambulance</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Issue Category</label>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <CategoryCard id="pothole" icon={<AlertTriangle />} label="Pothole" selected={category === 'pothole'} onClick={() => { setCategory('pothole'); setDepartment('Municipal/Waste'); }} />
-                                        <CategoryCard id="garbage" icon={<Trash2 />} label="Garbage" selected={category === 'garbage'} onClick={() => { setCategory('garbage'); setDepartment('Municipal/Waste'); }} />
-                                        <CategoryCard id="light" icon={<Lightbulb />} label="Light" selected={category === 'light'} onClick={() => { setCategory('light'); setDepartment('Electricity Board'); }} />
-                                        <CategoryCard id="water" icon={<Droplets />} label="Water" selected={category === 'water'} onClick={() => { setCategory('water'); setDepartment('Water Supply'); }} />
+                                        {/* Dynamic Categories based on Department */}
+                                        {department === 'Municipal/Waste' && (
+                                            <>
+                                                <CategoryCard id="pothole" icon={<AlertTriangle />} label="Pothole" selected={category === 'pothole'} onClick={() => setCategory('pothole')} />
+                                                <CategoryCard id="garbage" icon={<Trash2 />} label="Garbage" selected={category === 'garbage'} onClick={() => setCategory('garbage')} />
+                                            </>
+                                        )}
+                                        {department === 'Electricity Board' && (
+                                            <>
+                                                <CategoryCard id="light" icon={<Lightbulb />} label="Street Light" selected={category === 'light'} onClick={() => setCategory('light')} />
+                                                <CategoryCard id="wire" icon={<AlertTriangle />} label="Loose Wire" selected={category === 'wire'} onClick={() => setCategory('wire')} />
+                                            </>
+                                        )}
+                                        {department === 'Water Supply' && (
+                                            <>
+                                                <CategoryCard id="water" icon={<Droplets />} label="Leakage" selected={category === 'water'} onClick={() => setCategory('water')} />
+                                                <CategoryCard id="sewage" icon={<Trash2 />} label="Sewage" selected={category === 'sewage'} onClick={() => setCategory('sewage')} />
+                                            </>
+                                        )}
+                                        {department === 'Traffic' && (
+                                            <>
+                                                <CategoryCard id="jam" icon={<AlertTriangle />} label="Traffic Jam" selected={category === 'jam'} onClick={() => setCategory('jam')} />
+                                                <CategoryCard id="signal" icon={<Lightbulb />} label="Signal Fault" selected={category === 'signal'} onClick={() => setCategory('signal')} />
+                                            </>
+                                        )}
+                                        {department === 'Police' && (
+                                            <>
+                                                <CategoryCard id="theft" icon={<AlertTriangle />} label="Theft" selected={category === 'theft'} onClick={() => setCategory('theft')} />
+                                                <CategoryCard id="suspicious" icon={<Search />} label="Suspicious" selected={category === 'suspicious'} onClick={() => setCategory('suspicious')} />
+                                            </>
+                                        )}
+                                        {department === 'Fire & Safety' && (
+                                            <>
+                                                <CategoryCard id="fire" icon={<Flame />} label="Fire Incident" selected={category === 'fire'} onClick={() => setCategory('fire')} />
+                                                <CategoryCard id="hazard" icon={<AlertTriangle />} label="Fire Hazard" selected={category === 'hazard'} onClick={() => setCategory('hazard')} />
+                                            </>
+                                        )}
+                                        {department === 'Medical/Ambulance' && (
+                                            <>
+                                                <CategoryCard id="accident" icon={<AlertTriangle />} label="Accident" selected={category === 'accident'} onClick={() => setCategory('accident')} />
+                                                <CategoryCard id="medical" icon={<Stethoscope />} label="Medical Help" selected={category === 'medical'} onClick={() => setCategory('medical')} />
+                                            </>
+                                        )}
+                                        {/* Fallback / Default */}
+                                        {!department && (
+                                            <>
+                                                <CategoryCard id="pothole" icon={<AlertTriangle />} label="Pothole" selected={category === 'pothole'} onClick={() => { setCategory('pothole'); setDepartment('Municipal/Waste'); }} />
+                                                <CategoryCard id="garbage" icon={<Trash2 />} label="Garbage" selected={category === 'garbage'} onClick={() => { setCategory('garbage'); setDepartment('Municipal/Waste'); }} />
+                                                <CategoryCard id="light" icon={<Lightbulb />} label="Street Light" selected={category === 'light'} onClick={() => { setCategory('light'); setDepartment('Electricity Board'); }} />
+                                                <CategoryCard id="water" icon={<Droplets />} label="Water Leak" selected={category === 'water'} onClick={() => { setCategory('water'); setDepartment('Water Supply'); }} />
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>

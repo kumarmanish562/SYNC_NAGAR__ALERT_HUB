@@ -422,18 +422,24 @@ const AdminDashboard = () => {
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <button
+                                                    onClick={() => handleUpdateStatus('Resolved')}
+                                                    className="py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
+                                                >
+                                                    <CheckCircle size={18} /> Resolve
+                                                </button>
+                                                <button
                                                     onClick={() => navigate('/admin/broadcast', { state: { incidentId: selectedIncident.id } })}
                                                     className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20"
                                                 >
                                                     <Send size={18} /> Broadcast
                                                 </button>
-                                                <button
-                                                    onClick={() => handleUpdateStatus('Rejected')}
-                                                    className="py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200"
-                                                >
-                                                    Reject
-                                                </button>
                                             </div>
+                                            <button
+                                                onClick={() => handleUpdateStatus('Rejected')}
+                                                className="w-full py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 text-xs"
+                                            >
+                                                Reject Issue
+                                            </button>
                                         </div>
                                     ) : (
                                         <div className={`p-4 rounded-xl text-center border ${selectedIncident.status.startsWith('Rejected')

@@ -1,3 +1,6 @@
 
 
 node checkDB.js
+
+
+.\ngrok http 5001

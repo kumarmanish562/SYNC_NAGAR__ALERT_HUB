@@ -1,11 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Camera, Send, MapPin, Check, MessageCircle, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast'; // Import Toast
+import { useAuth } from '../../context/AuthContext'; // Import Auth
 import CivicLayout from './CivicLayout';
 import WhatsAppSimulator from '../../components/civic/WhatsAppSimulator';
 
 const WhatsAppGuide = () => {
     const navigate = useNavigate();
+    const { currentUser } = useAuth();
+    const [loading, setLoading] = useState(false);
+
+    const handleJoinCommunity = async () => {
+        if (!currentUser) return;
+        setLoading(true);
+        try {
+            const res = await fetch('http://127.0.0.1:5001/api/auth/join-community', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: currentUser.uid })
+            });
+
+            if (res.ok) {
+                toast.success("Community Invite Link sent to your WhatsApp!");
+            } else {
+                const data = await res.json();
+                toast.error(data.error || "Failed to join community");
+            }
+        } catch (error) {
+            console.error("Join Error:", error);
+            toast.error("Network error. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <CivicLayout>
@@ -44,9 +72,22 @@ const WhatsAppGuide = () => {
                                 >
                                     <MessageCircle size={24} className="fill-current" /> Chat with Bot Now
                                 </a>
-                                <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2">
-                                    <QrCode size={20} /> <span className="font-mono">+91 99814 78143</span>
-                                </div>
+
+                                {currentUser && (
+                                    <button
+                                        onClick={handleJoinCommunity}
+                                        disabled={loading}
+                                        className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-lg shadow-blue-500/30 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1"
+                                    >
+                                        {loading ? "Sending..." : "Join Community Group"}
+                                    </button>
+                                )}
+
+                                {!currentUser && (
+                                    <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2">
+                                        <QrCode size={20} /> <span className="font-mono">+91 99814 78143</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Quick Steps Horizontal */}

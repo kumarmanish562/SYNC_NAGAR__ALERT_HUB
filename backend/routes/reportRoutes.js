@@ -8,6 +8,7 @@ router.post('/update-status', require('../controllers/reportController').updateR
 router.post('/broadcast', require('../controllers/reportController').sendBroadcast);
 router.get('/user/:uid', getUserReports);
 router.get('/department/:department', getDepartmentReports);
+router.get('/nearby', require('../controllers/reportController').getNearbyReports);
 router.get('/:id', getSingleReport);
 
 module.exports = router;

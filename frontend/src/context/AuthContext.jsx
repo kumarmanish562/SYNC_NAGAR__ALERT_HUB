@@ -26,6 +26,12 @@ export function AuthProvider({ children }) {
 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
+                // Clean up previous DB listener if exists
+                if (dbUnsubscribe) {
+                    dbUnsubscribe();
+                    dbUnsubscribe = null;
+                }
+
                 const db = getDatabase(auth.app);
                 const citizenRef = ref(db, `users/citizens/${user.uid}`);
 
@@ -82,6 +88,10 @@ export function AuthProvider({ children }) {
 
                 dbUnsubscribe = userQuery;
             } else {
+                if (dbUnsubscribe) {
+                    dbUnsubscribe();
+                    dbUnsubscribe = null;
+                }
                 setCurrentUser(null);
                 setUserRole(null);
                 setLoading(false);

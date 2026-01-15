@@ -1,4 +1,6 @@
 const { db, auth } = require('../config/firebase');
+const { sendMessage, createCommunity, joinCityCommunity } = require('./whatsappController');
+const { v4: uuidv4 } = require('uuid'); // Ensure uuid is available if needed, though mostly used in whatsappController
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const fs = require('fs');
@@ -135,37 +137,10 @@ exports.googleLogin = async (req, res) => {
         const snapshot = await registryRef.once('value');
 
         if (!snapshot.exists()) {
-            // New Google User - Create default entries
-            await registryRef.set({
-                uid,
-                firstName: name.split(' ')[0],
-                lastName: name.split(' ').slice(1).join(' '),
-                email,
-                role: 'citizen', // Default
-                address: 'No address set',
-                createdAt: new Date().toISOString()
-            });
-
-            // Add to broadcast list
-            const broadcastRef = db.ref(`users/broadcast_list/${uid}`);
-            await broadcastRef.set({
-                name,
-                email,
-                role: 'citizen',
-                address: 'No address set'
-            });
-
-            // Add to citizens list for gamification - UPDATED with Full Profile
-            const citizenRef = db.ref(`users/citizens/${uid}`);
-            await citizenRef.set({
-                firstName: name.split(' ')[0],
-                lastName: name.split(' ').slice(1).join(' '),
-                email, // Added email
-                address: 'No address set',
-                points: 0,
-                level: 1,
-                reportsCount: 0,
-                joinedAt: new Date().toISOString()
+            // STRICT MODE: Do not allow auto-registration via Google.
+            // User must be registered securely first.
+            return res.status(403).json({
+                error: "Access Denied: This Google account is not registered. Please Sign Up first."
             });
         }
 
@@ -186,12 +161,32 @@ const transporter = nodemailer.createTransport({
 
 exports.sendOtp = async (req, res) => {
     let { type, contact } = req.body;
-    contact = contact ? contact.trim().toLowerCase() : "";
+    contact = contact ? contact.trim() : "";
 
-    if (type === 'email') {
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        otpStore[contact] = otp;
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
+    // Store OTP in memory (handle both email and phone as keys)
+    otpStore[contact] = otp;
+
+    if (type === 'whatsapp') {
+        try {
+            let phoneNumber = contact.replace(/\D/g, '');
+            // Append India country code if missing (assuming 10 digit input)
+            if (phoneNumber.length === 10) {
+                phoneNumber = `91${phoneNumber}`;
+            }
+            // Ensure strict format potentially required by Whapi (often just digits is fine if country code included)
+            // Using Whapi to send OTP directly
+            const message = `*Nagar Alert Hub*\n\nYour verification code is: *${otp}*\n\n_This code expires in 5 minutes._`;
+            await sendMessage(phoneNumber, message);
+
+            console.log(`[WHATSAPP] OTP sent to ${phoneNumber}`);
+            res.status(200).json({ message: "OTP sent to WhatsApp successfully" });
+        } catch (error) {
+            console.error("WhatsApp OTP Error:", error);
+            res.status(500).json({ error: "WhatsApp OTP failed", details: error.message });
+        }
+    } else if (type === 'email') {
         // Log to file for debugging
         fs.appendFileSync(path.join(__dirname, '../debug_otp.log'), `[SEND] Email: ${contact} | OTP: ${otp} | Time: ${new Date().toISOString()}\n`);
 
@@ -251,36 +246,41 @@ exports.verifyOtp = async (req, res) => {
         return res.status(400).json({ error: "UID is required for session generation" });
     }
 
-    // Check if it's email (Mock) or Mobile (Twilio)
-    if (contact.includes('@')) {
-        // Master OTP for Dev/Testing to bypass issues
-        if (otp === '123456') {
-            console.log(`[VERIFY-OTP] Master OTP used for ${contact}`);
-            try {
-                const token = await auth.createCustomToken(uid);
-                return res.status(200).json({ message: "Master OTP Verified", token });
-            } catch (err) {
-                logError("VERIFY-OTP (Master Token)", err);
-                return res.status(500).json({ error: "Failed to create custom token" });
-            }
-        }
+    // Check if it's stored in memory (Email or WhatsApp)
+    if (otpStore[contact]) {
+
 
         const storedOtp = otpStore[contact];
-        fs.appendFileSync(path.join(__dirname, '../debug_otp.log'), `[VERIFY] Email: ${contact} | Input: ${otp} | Stored: ${storedOtp} | Time: ${new Date().toISOString()}\n`);
+        fs.appendFileSync(path.join(__dirname, '../debug_otp.log'), `[VERIFY] Contact: ${contact} | Input: ${otp} | Stored: ${storedOtp} | Time: ${new Date().toISOString()}\n`);
 
         if (storedOtp === otp) {
             delete otpStore[contact];
             try {
+                // Auto-Join Community on Success
+                if (uid) {
+                    const userSnap = await db.ref(`users/registry/${uid}`).once('value');
+                    const userData = userSnap.val();
+                    const city = userData?.city || (userData?.address ? userData.address.split(',')[0].trim() : "General");
+
+                    if (userData?.mobile && city) {
+                        joinCityCommunity(userData.mobile, city).catch(e => console.error("Community Join Error", e));
+                    }
+                }
+
                 const token = await auth.createCustomToken(uid);
                 res.status(200).json({ message: "OTP Verified Successfully", token });
             } catch (err) {
-                logError("VERIFY-OTP (Email Token)", err);
+
+                logError("VERIFY-OTP (Memory Token)", err);
                 res.status(500).json({ error: "Failed to create custom token" });
             }
         } else {
             console.warn(`[VERIFY-OTP] Mismatch! Sent: ${otp}, Stored: ${storedOtp}`);
             res.status(400).json({ error: "Invalid OTP" });
         }
+    } else if (contact.includes('@')) {
+        // Fallback for Email if not in store (shouldn't happen if flow is correct, but safe to keep logic consistent)
+        res.status(400).json({ error: "OTP expired or not found" });
     } else {
         // Mobile Verification via Twilio
         try {
@@ -306,9 +306,44 @@ exports.verifyOtp = async (req, res) => {
     }
 };
 
+// Logic for creating city communities
+exports.checkAndJoinCityCommunity = async (userData) => {
+    try {
+        const city = userData.address ? userData.address.split(',')[0].trim() : "General";
+        const communityRef = db.ref(`communities/${city}`);
+        const snap = await communityRef.once('value');
+
+        let communityId;
+        if (!snap.exists()) {
+            console.log(`[COMMUNITY] Creating new community for ${city}`);
+            // Create new community if city group doesn't exist
+            communityId = await createCommunity(`${city} Alert Hub`, [userData.mobile]);
+            if (communityId) {
+                await communityRef.set({ communityId, city, memberCount: 1 });
+            }
+        } else {
+            communityId = snap.val().communityId;
+            console.log(`[COMMUNITY] Adding user to existing ${city} community (${communityId})`);
+            // Logic to add participant via Whapi
+            // Note: createCommunity handles creation, but for adding specific participants to existing group, we need a separate call.
+            // Assuming we just want to create/ensure for now. 
+            // If Whapi supports add participant:
+            const axios = require('axios'); // Ensure axios is available
+            const WHAPI_URL = process.env.WHAPI_INSTANCE_URL;
+            const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
+
+            await axios.post(`${WHAPI_URL}/groups/${communityId}/participants`, {
+                participants: [userData.mobile.replace(/\D/g, '')]
+            }, { headers: { Authorization: `Bearer ${WHAPI_TOKEN}` } });
+        }
+    } catch (e) {
+        console.error("Community Join Error:", e.message);
+    }
+};
+
 // Sync/Repair User Profile (Called by frontend if data is missing)
 exports.syncUserProfile = async (req, res) => {
-    const { uid } = req.body;
+    const { uid, joinCommunity } = req.body;
     console.log(`[SYNC] Start Sync for UID: ${uid}`);
 
     if (!uid) {
@@ -364,6 +399,11 @@ exports.syncUserProfile = async (req, res) => {
             await deptAdminRef.set(updatedData);
         }
 
+        // --- Community Check ---
+        if (joinCommunity && role === 'citizen' && updatedData.mobile) {
+            await exports.checkAndJoinCityCommunity(updatedData);
+        }
+
         res.status(200).json({ message: "Profile synced successfully", data: updatedData });
 
     } catch (error) {
@@ -372,3 +412,26 @@ exports.syncUserProfile = async (req, res) => {
     }
 };
 
+// Explicit Endpoint for "Join Community" Button
+exports.joinCommunity = async (req, res) => {
+    const { uid } = req.body;
+    if (!uid) return res.status(400).json({ error: "UID required" });
+
+    try {
+        const userSnap = await db.ref(`users/registry/${uid}`).once('value');
+        if (!userSnap.exists()) return res.status(404).json({ error: "User not found" });
+
+        const userData = userSnap.val();
+        const city = userData?.city || (userData?.address ? userData.address.split(',')[0].trim() : "General");
+
+        if (!userData.mobile) return res.status(400).json({ error: "Mobile number required" });
+
+        // Trigger the invite logic
+        await joinCityCommunity(userData.mobile, city);
+
+        res.status(200).json({ message: "Invite link sent to WhatsApp" });
+    } catch (error) {
+        console.error("Join Community API Error:", error);
+        res.status(500).json({ error: "Failed to process request" });
+    }
+};

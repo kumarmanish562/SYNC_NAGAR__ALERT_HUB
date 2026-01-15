@@ -37,15 +37,19 @@ export default function Login() {
         e.preventDefault();
         setIsLoading(true);
         try {
+            // Trim inputs to avoid whitespace errors
+            const cleanEmail = email.trim();
+            const cleanPassword = password.trim();
+
             // 1. Verify credentials with Firebase Auth
-            const userCredential = await login(email, password);
+            const userCredential = await login(cleanEmail, cleanPassword);
             const uid = userCredential.user.uid;
 
             // 2. Credentials matched. Now send OTP to Email.
             const response = await fetch(`http://127.0.0.1:5001/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'email', contact: email })
+                body: JSON.stringify({ type: 'email', contact: cleanEmail })
             });
 
             if (!response.ok) throw new Error("Failed to send verification OTP");
@@ -53,11 +57,17 @@ export default function Login() {
             toast.success('Credentials verified! Please enter OTP sent to your email.');
 
             // 3. Navigate to OTP Verification Screen
-            navigate('/verify-otp', { state: { email, mode: 'login', userType, uid } });
+            navigate('/verify-otp', { state: { email: cleanEmail, mode: 'login', userType, uid } });
 
         } catch (error) {
             console.error(error);
-            toast.error("Login failed: " + error.message);
+            let msg = error.message;
+            if (msg.includes('auth/invalid-credential') || msg.includes('auth/user-not-found') || msg.includes('auth/wrong-password')) {
+                msg = "Incorrect email or password. Please try again or register.";
+            } else if (msg.includes('auth/too-many-requests')) {
+                msg = "Too many failed attempts. Please reset your password or try again later.";
+            }
+            toast.error(msg);
         } finally {
             setIsLoading(false);
         }

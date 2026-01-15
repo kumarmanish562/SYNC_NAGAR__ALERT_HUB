@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Mail, Phone, MapPin, Edit2, LogOut, Settings as SettingsIcon, Shield, ChevronRight, BarChart } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Edit2, LogOut, Settings as SettingsIcon, Shield, ChevronRight, BarChart, Star, Trash2, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -19,7 +19,8 @@ const Profile = () => {
         profilePic: '',
         points: 0,
         reportCount: 0,
-        role: 'Citizen'
+        role: 'Citizen',
+        badges: []
     });
     const [isEditing, setIsEditing] = React.useState(false);
     const [editedData, setEditedData] = React.useState({});
@@ -27,6 +28,12 @@ const Profile = () => {
     // Sync local state when Auth finishes loading user
     React.useEffect(() => {
         if (currentUser) {
+            // First, RESET state to avoid stale data from previous user leaking in
+            setUserData({
+                firstName: '', lastName: '', email: '', mobile: '', address: '',
+                profilePic: '', points: 0, reportCount: 0, role: 'Citizen', badges: []
+            });
+
             setUserData(prev => ({
                 ...prev,
                 firstName: currentUser.firstName || currentUser.displayName?.split(' ')[0] || 'User',
@@ -39,22 +46,57 @@ const Profile = () => {
                 role: currentUser.role || 'Citizen'
             }));
 
-            // Still need to listen for report count specifically if not in user object
+            // Sync with Registry (Master Record) for full details
             const db = getDatabase(auth.app);
+            const registryRef = ref(db, `users/registry/${currentUser.uid}`);
+            const unsubRegistry = onValue(registryRef, (snap) => {
+                if (snap.exists()) {
+                    const reg = snap.val();
+                    setUserData(prev => ({
+                        ...prev,
+                        firstName: reg.firstName || prev.firstName,
+                        lastName: reg.lastName || prev.lastName,
+                        mobile: reg.mobile || prev.mobile,
+                        address: reg.address || prev.address,
+                        email: reg.email || prev.email,
+                        profilePic: reg.profilePic || prev.profilePic
+                    }));
+                }
+            });
+
+            // Listen for reports count and generate badges
             const reportsRef = ref(db, 'reports');
             const unsubscribeReports = onValue(reportsRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const allReports = snapshot.val();
-                    const myReportsCount = Object.values(allReports).filter(r => r.userId === currentUser.uid).length;
-                    setUserData(prev => ({ ...prev, reportCount: myReportsCount }));
+                    const myReports = Object.values(allReports).filter(r => r.userId === currentUser.uid);
+
+                    // Logic for badges
+                    const newBadges = [];
+                    // 1. First Report
+                    if (myReports.length > 0) newBadges.push({ id: 'first', label: 'First Report', icon: <Star size={24} />, color: 'bg-yellow-500' });
+                    // 2. Pothole Pro
+                    if (myReports.some(r => (r.type || '').toLowerCase().includes('pothole'))) newBadges.push({ id: 'pothole', label: 'Pothole Pro', icon: <MapPin size={24} />, color: 'bg-blue-500' });
+                    // 3. Clean City (Garbage)
+                    if (myReports.some(r => (r.type || '').toLowerCase().includes('garbage'))) newBadges.push({ id: 'clean', label: 'Clean City', icon: <Trash2 size={24} />, color: 'bg-green-500' });
+                    // 4. Verified (Mobile present)
+                    // We check currentUser.mobile directly
+                    if (currentUser.mobile || (currentUser.phoneNumber)) newBadges.push({ id: 'verified', label: 'Verified', icon: <Shield size={24} />, color: 'bg-purple-600' });
+                    // 5. Civic Hero (Points > 50)
+                    if ((currentUser.points || 0) > 50) newBadges.push({ id: 'hero', label: 'Civic Hero', icon: <Zap size={24} />, color: 'bg-red-500' });
+
+                    setUserData(prev => ({ ...prev, reportCount: myReports.length, badges: newBadges }));
                 } else {
-                    setUserData(prev => ({ ...prev, reportCount: 0 }));
+                    setUserData(prev => ({ ...prev, reportCount: 0, badges: [] }));
                 }
             });
 
-            return () => unsubscribeReports(); // Cleanup listener
+            return () => {
+                unsubRegistry();
+                unsubscribeReports();
+            };
         } else {
-            // If currentUser becomes null (e.g., logged out), navigate to login
+            // ... (logout logic)
             navigate('/login');
         }
     }, [currentUser, navigate]);
@@ -64,9 +106,9 @@ const Profile = () => {
     return (
         <CivicLayout>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                {/* Left Col: Profile Card */}
+                {/* ... Left Col code ... */}
                 <div className="space-y-6">
+                    {/* ... Profile Card ... */}
                     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 p-8 flex flex-col items-center text-center relative overflow-hidden">
                         {/* Background Pattern */}
                         <div className="absolute top-0 w-full h-32 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
@@ -134,6 +176,43 @@ const Profile = () => {
 
                 {/* Right Col: Details Board */}
                 <div className="lg:col-span-2 space-y-8">
+
+                    {/* NEW: Achievements Section (LeetCode Style) */}
+                    <div className="bg-[#1e293b] rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
+                        <div className="relative z-10">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold">Your Achievements</h2>
+                                    <p className="text-slate-400 mt-1">You have earned {userData.badges.length} badges.</p>
+                                </div>
+                                <button
+                                    onClick={() => navigate('/civic/achievements')}
+                                    className="bg-slate-700/50 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition backdrop-blur-sm"
+                                >
+                                    View All
+                                </button>
+                            </div>
+
+                            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                                {userData.badges.length > 0 ? userData.badges.map(badge => (
+                                    <div key={badge.id} className="flex flex-col items-center gap-3 bg-slate-800/50 p-4 rounded-2xl min-w-[110px] border border-slate-700 hover:bg-slate-800 transition-colors">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${badge.color} text-white shadow-lg`}>
+                                            {badge.icon}
+                                        </div>
+                                        <span className="text-[10px] font-extrabold text-center uppercase tracking-widest text-slate-300">{badge.label}</span>
+                                    </div>
+                                )) : (
+                                    <div className="text-slate-400 italic text-sm py-4">
+                                        Submit your first report to unlock badges!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        {/* Decorative Background Blur */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600 rounded-full blur-[120px] opacity-20 -mr-16 -mt-16 pointer-events-none"></div>
+                        <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-600 rounded-full blur-[100px] opacity-20 -ml-16 -mb-16 pointer-events-none"></div>
+                    </div>
+
                     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 p-8">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Personal Information</h2>
@@ -142,17 +221,21 @@ const Profile = () => {
                                     if (isEditing) {
                                         // Save Logic
                                         const db = getDatabase(auth.app);
-                                        const userRef = ref(db, `users/citizens/${auth.currentUser.uid}`);
-                                        update(userRef, {
+                                        const updates = {
                                             firstName: editedData.firstName || userData.firstName,
                                             lastName: editedData.lastName || userData.lastName,
                                             mobile: editedData.mobile || userData.mobile,
                                             address: editedData.address || userData.address,
-                                            profilePic: userData.profilePic // Preserve pic
-                                        }).then(() => {
+                                            // profilePic handled separately via prompt, but good to ensure consistency if we had input
+                                        };
+
+                                        const p1 = update(ref(db, `users/citizens/${auth.currentUser.uid}`), updates);
+                                        const p2 = update(ref(db, `users/registry/${auth.currentUser.uid}`), updates);
+
+                                        Promise.all([p1, p2]).then(() => {
                                             setIsEditing(false);
                                             // Optimistic update
-                                            setUserData(prev => ({ ...prev, ...editedData }));
+                                            setUserData(prev => ({ ...prev, ...updates }));
                                         }).catch(err => alert("Update failed: " + err.message));
                                     } else {
                                         // Start Editing

@@ -1,0 +1,62 @@
+🔑 Checking API Key...
+Key loaded: AIzaS...
+🚀 Sending 'Hello' to Google...
+❌ FAILED:
+[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+{
+  "status": 404,
+  "statusText": "Not Found"
+}
+
+💡 FIX: Go to https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com and click ENABLE.
+🔑 Checking API Key...
+Key loaded: AQ.Ab...
+🚀 Sending 'Hello' to Google...
+❌ FAILED:
+[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [401 Unauthorized] API keys are not supported by this API. Expected OAuth2 access token or other authentication credentials that assert a principal. See https://cloud.google.com/docs/authentication [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CREDENTIALS_MISSING","domain":"googleapis.com","metadata":{"service":"generativelanguage.googleapis.com","method":"google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent"}}]
+{
+  "status": 401,
+  "statusText": "Unauthorized",
+  "errorDetails": [
+    {
+      "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+      "reason": "CREDENTIALS_MISSING",
+      "domain": "googleapis.com",
+      "metadata": {
+        "service": "generativelanguage.googleapis.com",
+        "method": "google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent"
+      }
+    }
+  ]
+}
+🔑 Checking API Key...
+Key loaded: AQ.Ab...
+🚀 Sending 'Hello' to Google...
+❌ FAILED:
+[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent: [401 Unauthorized] API keys are not supported by this API. Expected OAuth2 access token or other authentication credentials that assert a principal. See https://cloud.google.com/docs/authentication [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CREDENTIALS_MISSING","domain":"googleapis.com","metadata":{"service":"generativelanguage.googleapis.com","method":"google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent"}}]
+{
+  "status": 401,
+  "statusText": "Unauthorized",
+  "errorDetails": [
+    {
+      "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+      "reason": "CREDENTIALS_MISSING",
+      "domain": "googleapis.com",
+      "metadata": {
+        "service": "generativelanguage.googleapis.com",
+        "method": "google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent"
+      }
+    }
+  ]
+}
+🔑 Checking API Key...
+Key loaded: AIzaS...
+🚀 Sending 'Hello' to Google...
+❌ FAILED:
+[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent: [404 Not Found] models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+{
+  "status": 404,
+  "statusText": "Not Found"
+}
+
+💡 FIX: Go to https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com and click ENABLE.

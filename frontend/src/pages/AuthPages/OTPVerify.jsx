@@ -81,15 +81,20 @@ const OTPVerify = () => {
     const sendOtp = async (type, contact) => {
         const setLoading = type === 'mobile' ? setLoadingMobile : setLoadingEmail;
         setLoading(true);
+
+        // Map 'mobile' UI action to 'whatsapp' backend type for now, or keep 'mobile' if using SMS.
+        // User request specifically mentions using WhatsApp OTP.
+        const reqType = type === 'mobile' ? 'whatsapp' : type;
+
         try {
             const res = await fetch(`http://127.0.0.1:5001/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, contact })
+                body: JSON.stringify({ type: reqType, contact })
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success(`${type === 'mobile' ? 'Mobile' : 'Email'} OTP Sent!`);
+                toast.success(`${type === 'mobile' ? 'WhatsApp' : 'Email'} OTP Sent!`);
             } else {
                 throw new Error(data.error || 'Failed to send OTP');
             }
@@ -108,6 +113,10 @@ const OTPVerify = () => {
 
         setLoading(true);
         try {
+            // Check if using WhatsApp logic (implied by mobile type in this context if we want to follow user request strictly, 
+            // but the backend handles 'whatsapp' type differentiation. Frontend here strictly sends 'mobile' or 'email' types based on UI)
+            // However, the backend 'verify-otp' reads contact directly.
+
             const res = await fetch(`http://127.0.0.1:5001/api/auth/verify-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -119,6 +128,21 @@ const OTPVerify = () => {
                 setVerified(true);
                 if (data.token) setAuthToken(data.token);
                 toast.success(`${type === 'mobile' ? 'Mobile' : 'Email'} Verified Successfully!`);
+
+                // PROACTIVE: Sync Profile & Join Community if mobile is verified
+                if (type === 'mobile') {
+                    try {
+                        await fetch('http://127.0.0.1:5001/api/auth/sync-profile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid, joinCommunity: true })
+                        });
+                        toast.success("You've been added to your City Alert Hub!");
+                    } catch (syncErr) {
+                        console.error("Community Join Error:", syncErr);
+                    }
+                }
+
             } else {
                 console.error(`[OTP ERROR] Status: ${res.status}, Data:`, data);
                 throw new Error(data.error || 'Invalid OTP');

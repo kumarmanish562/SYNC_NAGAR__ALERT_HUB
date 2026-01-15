@@ -16,6 +16,11 @@ router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtp);
 
 // Sync Profile (Self-healing)
+// Sync Profile (Self-healing)
 router.post('/sync-profile', syncUserProfile);
+
+// Manual Community Join
+const { joinCommunity } = require('../controllers/authController');
+router.post('/join-community', joinCommunity);
 
 module.exports = router;

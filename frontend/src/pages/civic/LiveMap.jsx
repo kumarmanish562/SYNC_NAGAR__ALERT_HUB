@@ -4,18 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { getDatabase, ref, onValue } from "firebase/database";
 import { auth } from '../../services/firebase';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, OverlayView } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY } from '../../mapsConfig';
 
 const containerStyle = {
     width: '100%',
     height: '100%'
-};
-
-// Default center (Bhilai/Ranchi approximate)
-const center = {
-    lat: 21.2514,
-    lng: 81.6296
 };
 
 const LiveMap = () => {
@@ -26,9 +20,32 @@ const LiveMap = () => {
         libraries
     });
 
+    const [mapCenter, setMapCenter] = useState(null); // Start with NULL to enforce real-time location
     const [selectedPin, setSelectedPin] = useState(null);
     const [pins, setPins] = useState([]);
     const navigate = useNavigate();
+
+    // Get Real-Time User Location
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setMapCenter({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    console.log("Location access denied or unavailable. Defaulting to India View.");
+                    // Fallback to Center of India (Nagpur) only if permission denied
+                    setMapCenter({ lat: 21.1458, lng: 79.0882 });
+                }
+            );
+        } else {
+            // Fallback if browser doesn't support Geolocation
+            setMapCenter({ lat: 21.1458, lng: 79.0882 });
+        }
+    }, []);
 
     useEffect(() => {
         const db = getDatabase(auth.app);
@@ -37,13 +54,14 @@ const LiveMap = () => {
         onValue(reportsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const loadedPins = Object.keys(data).map(key => ({
-                    id: key,
-                    ...data[key],
-                    // Use real locations if available, else random fallback near center
-                    lat: data[key].location?.lat || (21.2514 + (Math.random() - 0.5) * 0.05),
-                    lng: data[key].location?.lng || (81.6296 + (Math.random() - 0.5) * 0.05),
-                }));
+                const loadedPins = Object.keys(data)
+                    .map(key => ({
+                        id: key,
+                        ...data[key]
+                    }))
+                    // Filter out reports that don't have valid coordinates
+                    .filter(pin => pin.location && pin.location.lat && pin.location.lng);
+
                 setPins(loadedPins);
             }
         });
@@ -52,32 +70,78 @@ const LiveMap = () => {
     return (
         <CivicLayout noPadding>
             <div className="relative h-full w-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                {/* Google Map */}
-                {isLoaded ? (
+                {/* Google Map - Only render when we have a Location (mapCenter) */}
+                {isLoaded && mapCenter ? (
                     <GoogleMap
                         mapContainerStyle={containerStyle}
-                        center={center}
-                        zoom={12}
+                        center={mapCenter}
+                        zoom={15} // Close zoom for precision
                         options={{
-                            disableDefaultUI: true, // Clean look
+                            disableDefaultUI: true,
                             zoomControl: true,
                         }}
                     >
-                        {/* Markers */}
-                        {pins.map(pin => (
-                            <Marker
-                                key={pin.id}
-                                position={{
-                                    lat: pin.location?.lat || (pin.lat), // Handle both data structures safely
-                                    lng: pin.location?.lng || (pin.lng)
-                                }}
-                                onClick={() => setSelectedPin(pin)}
-                            />
-                        ))}
+                        {/* Current User Location Marker (Blue Dot) */}
+                        <Marker
+                            position={mapCenter}
+                            icon={{
+                                path: window.google.maps.SymbolPath.CIRCLE,
+                                scale: 8,
+                                fillOpacity: 1,
+                                strokeWeight: 2,
+                                fillColor: '#4285F4',
+                                strokeColor: '#ffffff',
+                            }}
+                            title="You are here"
+                        />
+
+                        {/* Incident Markers */}
+                        {pins.map(pin => {
+                            const isCritical = ['Fire & Safety', 'Medical/Ambulance', 'Police'].includes(pin.department) || pin.priority === 'Critical';
+
+                            if (isCritical) {
+                                return (
+                                    <OverlayView
+                                        key={pin.id}
+                                        position={{ lat: parseFloat(pin.location.lat), lng: parseFloat(pin.location.lng) }}
+                                        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                                    >
+                                        <div
+                                            className="relative flex items-center justify-center w-12 h-12 transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
+                                            onClick={() => setSelectedPin(pin)}
+                                        >
+                                            {/* Blinking Ring - Prediction 3: Emergency Escalation UI */}
+                                            <span className="absolute inline-flex h-full w-full rounded-full bg-red-600 opacity-75 animate-ping"></span>
+                                            <span className="absolute inline-flex h-8 w-8 rounded-full bg-red-500 opacity-50"></span>
+
+                                            {/* Core Icon */}
+                                            <div className="relative w-8 h-8 bg-red-600 rounded-full shadow-lg flex items-center justify-center border-2 border-white z-10 text-white font-bold text-xs">
+                                                SOS
+                                            </div>
+                                        </div>
+                                    </OverlayView>
+                                );
+                            }
+
+                            return (
+                                <Marker
+                                    key={pin.id}
+                                    position={{
+                                        lat: parseFloat(pin.location.lat),
+                                        lng: parseFloat(pin.location.lng)
+                                    }}
+                                    onClick={() => setSelectedPin(pin)}
+                                    icon={pin.status === 'Resolved'
+                                        ? "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+                                        : "http://maps.google.com/mapfiles/ms/icons/red-dot.png"}
+                                />
+                            );
+                        })}
                     </GoogleMap>
                 ) : (
-                    <div className="flex items-center justify-center h-full w-full bg-slate-200">
-                        Loading Map...
+                    <div className="flex flex-col items-center justify-center h-full w-full bg-slate-200 dark:bg-slate-900 text-slate-500">
+                        <MapPin className="animate-bounce mb-2 text-blue-500" size={32} />
+                        <span className="font-bold animate-pulse">Locating you...</span>
                     </div>
                 )}
 

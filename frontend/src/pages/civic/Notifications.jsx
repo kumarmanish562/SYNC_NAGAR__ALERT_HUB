@@ -11,49 +11,52 @@ const Notifications = () => {
     React.useEffect(() => {
         const db = getDatabase(auth.app);
 
-        // Listen to Reports to generate notifications dynamically
-        const reportsRef = ref(db, 'reports');
+        let reportNotifs = [];
+        let broadcastNotifs = [];
 
-        const unsubscribe = onValue(reportsRef, (snapshot) => {
+        const updateState = () => {
+            const combined = [...reportNotifs, ...broadcastNotifs].sort((a, b) => b.timestamp - a.timestamp);
+            setNotifications(combined);
+        };
+
+        // 1. Listen to Reports
+        const reportsRef = ref(db, 'reports');
+        const unsubReports = onValue(reportsRef, (snapshot) => {
+            reportNotifs = []; // Reset local array
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                let generatedNotifs = [];
-
                 Object.keys(data).forEach(key => {
                     const r = data[key];
                     if (r.userId === auth.currentUser?.uid) {
-
-                        // 1. Creation Notification
-                        generatedNotifs.push({
+                        // Creation
+                        reportNotifs.push({
                             id: `${key}_created`,
                             type: 'info',
                             title: 'Report Submitted',
-                            message: `Your report for ${r.type} has been successfully received.`,
+                            message: `Your report for ${r.type} has been received.`,
                             time: new Date(r.timestamp).toLocaleDateString(),
                             timestamp: r.timestamp,
                             read: true
                         });
-
-                        // 2. Status Updates (Simulated based on status)
+                        // Updates
                         if (r.status !== 'Pending') {
-                            generatedNotifs.push({
+                            reportNotifs.push({
                                 id: `${key}_status`,
                                 type: r.status === 'Resolved' ? 'success' : 'alert',
                                 title: `Report ${r.status}`,
                                 message: `Your report for ${r.type} is now ${r.status}.`,
-                                time: new Date(r.timestamp).toLocaleDateString(), // ideally would use a separate status timestamp
+                                time: new Date(r.timestamp).toLocaleDateString(),
                                 timestamp: r.timestamp + 1000,
                                 read: false
                             });
                         }
-
-                        // 3. AI Verification Notification
+                        // AI
                         if (r.aiVerified) {
-                            generatedNotifs.push({
+                            reportNotifs.push({
                                 id: `${key}_ai`,
                                 type: 'success',
                                 title: 'Points Awarded',
-                                message: `Your ${r.type} report was verified by AI! You earned +10 Karma Points.`,
+                                message: `Your ${r.type} report was verified by AI! +10 Karma Points.`,
                                 time: new Date(r.timestamp).toLocaleDateString(),
                                 timestamp: r.timestamp + 500,
                                 read: false
@@ -61,14 +64,37 @@ const Notifications = () => {
                         }
                     }
                 });
-
-                // Sort by time descending
-                generatedNotifs.sort((a, b) => b.timestamp - a.timestamp);
-                setNotifications(generatedNotifs);
             }
+            updateState();
         });
 
-        return () => unsubscribe();
+        // 2. Listen to Broadcasts
+        const broadcastsRef = ref(db, 'broadcasts');
+        const unsubBroadcasts = onValue(broadcastsRef, (snapshot) => {
+            broadcastNotifs = []; // Reset local
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                Object.keys(data).forEach(key => {
+                    const b = data[key];
+                    // Show all broadcasts to everyone for now (or filter by city if avail)
+                    broadcastNotifs.push({
+                        id: key,
+                        type: 'alert', // Broadcasts are usually alerts
+                        title: `📢 Official Alert: ${b.target || 'General'}`,
+                        message: b.message || "No details provided.",
+                        time: new Date(b.timestamp).toLocaleString(),
+                        timestamp: b.timestamp,
+                        read: false
+                    });
+                });
+            }
+            updateState();
+        });
+
+        return () => {
+            unsubReports();
+            unsubBroadcasts();
+        };
     }, []);
 
     const handleDismiss = (id) => {

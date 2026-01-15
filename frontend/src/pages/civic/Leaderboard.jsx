@@ -12,15 +12,15 @@ const Leaderboard = () => {
     const [filter, setFilter] = useState('Weekly');
 
     const [users, setUsers] = useState([]);
+    const [currentUserData, setCurrentUserData] = useState(null);
 
     // Fetch Leaderboard from Firebase
     React.useEffect(() => {
         const fetchLeaderboard = () => {
             const db = getDatabase(auth.app);
 
-            // In a real app with thousands of users, you'd use limitToLast(100)
-            // Firebase sorts ascending efficiently, so we get them then reverse
-            const usersRef = query(ref(db, 'users/citizens'), orderByChild('points'), limitToLast(50));
+            // Fetch Top 100
+            const usersRef = query(ref(db, 'users/citizens'), orderByChild('points'), limitToLast(100));
 
             onValue(usersRef, (snapshot) => {
                 if (snapshot.exists()) {
@@ -28,9 +28,9 @@ const Leaderboard = () => {
                     const leaderboardData = Object.keys(data).map(key => ({
                         id: key,
                         ...data[key],
-                        name: `${data[key].firstName} ${data[key].lastName} `.trim(),
+                        name: (data[key].firstName && data[key].lastName) ? `${data[key].firstName} ${data[key].lastName}` : (data[key].name || 'Anonymous Citizen'),
                         points: data[key].points || 0,
-                        avatar: `https://ui-avatars.com/api/?name=${data[key].firstName}+${data[key].lastName}&background=random`,
+                        avatar: data[key].profilePic || `https://ui-avatars.com/api/?name=${data[key].firstName || 'User'}+${data[key].lastName || ''}&background=random`,
                         isMe: auth.currentUser?.uid === key
                     }));
 
@@ -48,6 +48,27 @@ const Leaderboard = () => {
             });
         };
         fetchLeaderboard();
+    }, []);
+
+    // Fetch My Data Separate (to ensure sticky row always works)
+    React.useEffect(() => {
+        if (!auth.currentUser) return;
+        const db = getDatabase(auth.app);
+        const myRef = ref(db, `users/citizens/${auth.currentUser.uid}`);
+
+        const unsub = onValue(myRef, (snap) => {
+            if (snap.exists()) {
+                const d = snap.val();
+                setCurrentUserData({
+                    id: auth.currentUser.uid,
+                    ...d,
+                    name: (d.firstName && d.lastName) ? `${d.firstName} ${d.lastName}` : (d.name || 'Me'),
+                    points: d.points || 0,
+                    avatar: d.profilePic || `https://ui-avatars.com/api/?name=${d.firstName}+${d.lastName}&background=random`
+                });
+            }
+        });
+        return () => unsub();
     }, []);
 
     return (
@@ -177,16 +198,29 @@ const Leaderboard = () => {
                             </table>
                         </div>
                         {/* Sticky 'Me' Row if scroll needed */}
-                        {users.find(u => u.isMe) && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 border-t border-blue-100 dark:border-blue-800/30 flex items-center justify-between">
+                        {(currentUserData || users.find(u => u.isMe)) && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 border-t border-blue-100 dark:border-blue-800/30 flex items-center justify-between sticky bottom-0 z-10 backdrop-blur-sm">
                                 <div className="flex items-center gap-4">
-                                    <div className="font-bold text-blue-600 dark:text-blue-400">#{users.find(u => u.isMe).rank}</div>
+                                    <div className="font-bold text-blue-600 dark:text-blue-400">
+                                        #{users.find(u => u.isMe)?.rank || '100+'}
+                                    </div>
                                     <div className="flex items-center gap-3">
-                                        <img src={users.find(u => u.isMe).avatar} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800" alt="" />
-                                        <span className="font-bold text-slate-900 dark:text-white">You</span>
+                                        <img
+                                            src={currentUserData?.avatar || users.find(u => u.isMe)?.avatar}
+                                            className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800"
+                                            alt=""
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-slate-900 dark:text-white leading-tight">You</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                {currentUserData?.name || users.find(u => u.isMe)?.name}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="font-bold text-slate-900 dark:text-white">{users.find(u => u.isMe).points} pts</div>
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                    {currentUserData?.points ?? users.find(u => u.isMe)?.points ?? 0} pts
+                                </div>
                             </div>
                         )}
                     </div>
