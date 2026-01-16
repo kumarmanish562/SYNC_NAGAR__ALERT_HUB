@@ -19,10 +19,33 @@ const SOS = () => {
         } else if (active && countdown === 0) {
             // Trigger SOS
             setActive(false);
+
+            // 1. Immediate Action: Initiate Call to Police (100)
+            window.location.href = "tel:100";
+
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(async (pos) => {
                     const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     setSentLocation(loc);
+
+                    let finalAddress = `SOS Signal: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`;
+
+                    // Attempt Reverse Geocoding for Proper Address
+                    try {
+                        const { GOOGLE_MAPS_API_KEY } = await import('../../mapsConfig');
+                        if (GOOGLE_MAPS_API_KEY) {
+                            const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.lat},${loc.lng}&key=${GOOGLE_MAPS_API_KEY}`);
+                            const geoData = await geoRes.json();
+                            if (geoData.results && geoData.results[0]) {
+                                finalAddress = geoData.results[0].formatted_address;
+                            }
+                        }
+                    } catch (geoErr) {
+                        console.error("Geocoding failed, using coords:", geoErr);
+                    }
+
+                    // Update state with address so UI shows it
+                    setSentLocation({ ...loc, address: finalAddress });
 
                     // Create Critical Report to trigger Prediction 3 & Map Blink & Email
                     try {
@@ -37,7 +60,7 @@ const SOS = () => {
                             location: {
                                 lat: loc.lat.toString(),
                                 lng: loc.lng.toString(),
-                                address: `SOS Signal: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`
+                                address: finalAddress
                             },
                         };
 
@@ -90,7 +113,7 @@ const SOS = () => {
                         <div className="space-y-4">
                             <ContactRow icon={<Phone size={20} />} name="Police Control Room" number="100" type="Official" />
                             <ContactRow icon={<AlertTriangle size={20} />} name="Fire Brigade" number="101" type="Official" />
-                            <ContactRow icon={<UserIcon />} name="Dad (Family)" number="+91 98765 43210" type="Personal" />
+                            <ContactRow icon={<UserIcon />} name="My Personal Number" number="+91 88728 25483" type="Personal" />
                         </div>
                     </div>
                 </div>
@@ -145,8 +168,8 @@ const SOS = () => {
                                 Alert Sent Successfully!
                             </div>
                             {sentLocation && (
-                                <span className="text-sm font-normal opacity-80">
-                                    Location Shared: {sentLocation.lat.toFixed(5)}, {sentLocation.lng.toFixed(5)}
+                                <span className="text-sm font-normal opacity-80 max-w-xs break-words">
+                                    Location Shared: {sentLocation.address || `${sentLocation.lat.toFixed(5)}, ${sentLocation.lng.toFixed(5)}`}
                                 </span>
                             )}
                         </motion.div>
@@ -159,20 +182,25 @@ const SOS = () => {
 };
 
 const ContactRow = ({ icon, name, number, type }) => (
-    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
+    <a href={`tel:${number}`} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group" title={`Call ${name}`}>
         <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-sm">
                 {icon}
             </div>
             <div>
                 <div className="font-bold text-base text-slate-900 dark:text-white">{name}</div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">{number}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 font-mono">{number}</div>
             </div>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${type === 'Official' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'}`}>
-            {type}
-        </span>
-    </div>
+        <div className="flex items-center gap-3">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${type === 'Official' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'}`}>
+                {type}
+            </span>
+            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Phone size={16} className="fill-current" />
+            </div>
+        </div>
+    </a>
 );
 
 const UserIcon = () => (

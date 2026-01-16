@@ -163,9 +163,9 @@ const Profile = () => {
                     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 p-6">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Account</h3>
                         <div className="space-y-1">
-                            <ActionRow icon={<Shield size={18} />} label="Privacy & Security" />
-                            <ActionRow icon={<SettingsIcon size={18} />} label="Preferences" />
-                            <ActionRow icon={<BarChart size={18} />} label="Data Usage" />
+                            <ActionRow icon={<Shield size={18} />} label="Privacy & Security" onClick={() => navigate('/civic/privacy')} />
+                            <ActionRow icon={<SettingsIcon size={18} />} label="Preferences" onClick={() => navigate('/civic/preferences')} />
+                            <ActionRow icon={<BarChart size={18} />} label="Data Usage" onClick={() => navigate('/civic/data-usage')} />
                         </div>
                         <div className="border-t border-slate-50 dark:border-slate-800 my-4"></div>
                         <button onClick={() => auth.signOut()} className="w-full py-3 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl flex items-center justify-center gap-2 transition-colors">
@@ -327,25 +327,7 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    {/* Achievements / Badges Mockup */}
-                    <div className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 rounded-3xl p-8 text-white relative overflow-hidden">
-                        <div className="relative z-10 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-bold mb-1">Your Achievements</h3>
-                                <p className="text-slate-400 text-sm">You have earned 4/12 badges this month.</p>
-                            </div>
-                            <button className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-colors">View All</button>
-                        </div>
-                        <div className="flex gap-4 mt-8">
-                            <BadgeBox icon="🌟" name="First Report" />
-                            <BadgeBox icon="🛣️" name="Pothole Pro" />
-                            <BadgeBox icon="⚡" name="Quick Snap" />
-                            <BadgeBox icon="🔒" name="Verified" />
-                        </div>
 
-                        {/* Decor */}
-                        <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-blue-500/20 rounded-full blur-2xl"></div>
-                    </div>
 
                 </div>
 
@@ -375,8 +357,8 @@ const InfoCard = ({ icon, label, value, verified, fullWidth }) => (
     </div>
 );
 
-const ActionRow = ({ icon, label }) => (
-    <button className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
+const ActionRow = ({ icon, label, onClick }) => (
+    <button onClick={onClick} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
         <div className="flex items-center gap-3">
             <div className="text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{icon}</div>
             <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">{label}</span>

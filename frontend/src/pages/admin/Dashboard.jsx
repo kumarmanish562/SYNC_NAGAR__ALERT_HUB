@@ -54,12 +54,15 @@ const AdminDashboard = () => {
 
         const db = getDatabase();
         const sanitizedDept = sanitizeKey(currentUser.department);
-        const deptReportsRef = ref(db, `reports/by_department/${sanitizedDept}`);
+        // const deptReportsRef = ref(db, `reports/by_department/${sanitizedDept}`);
+        const deptReportsRef = ref(db, `reports`); // LISTEN TO EVERYTHING
 
         // 1. Initial API Fetch (Fallback if RTDB is blocked)
         const fetchFromApi = async () => {
             try {
-                const res = await fetch(`http://127.0.0.1:5001/api/reports/department/${encodeURIComponent(sanitizedDept)}`);
+                // TEMP DEBUG: Fetch ALL reports regardless of department
+                // const res = await fetch(`http://127.0.0.1:5001/api/reports/department/${encodeURIComponent(sanitizedDept)}`);
+                const res = await fetch(`http://127.0.0.1:5001/api/reports`); // FETCH EVERYTHING
                 if (res.ok) {
                     const data = await res.json();
                     if (data.reports) {
@@ -100,7 +103,7 @@ const AdminDashboard = () => {
 
         reportsArray.forEach(report => {
             const status = report.status || 'Pending';
-            if (status === 'Pending' || status === 'Open') open++;
+            if (status === 'Pending' || status === 'Open' || status === 'Pending Address') open++;
             if (status === 'Resolved' || status === 'Completed') resolved++;
             if (report.aiConfidence > 80 && status === 'Pending') flagged++;
             if (report.priority === 'High') high++;
@@ -126,9 +129,14 @@ const AdminDashboard = () => {
             const bounds = new window.google.maps.LatLngBounds();
             let hasPoints = false;
             recentReports.forEach(report => {
-                if (report.location && report.location.lat && report.location.lng) {
-                    bounds.extend({ lat: report.location.lat, lng: report.location.lng });
-                    hasPoints = true;
+                if (report.location) {
+                    const lat = parseFloat(report.location.lat);
+                    const lng = parseFloat(report.location.lng);
+
+                    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                        bounds.extend({ lat, lng });
+                        hasPoints = true;
+                    }
                 }
             });
             if (hasPoints) {
@@ -245,7 +253,13 @@ const AdminDashboard = () => {
                                         }}
                                     >
                                         {recentReports.map((report) => (
-                                            report.location && report.location.lat && (
+                                            report.location &&
+                                            typeof report.location.lat === 'number' &&
+                                            !isNaN(report.location.lat) &&
+                                            report.location.lat !== 0 &&
+                                            typeof report.location.lng === 'number' &&
+                                            !isNaN(report.location.lng) &&
+                                            report.location.lng !== 0 && (
                                                 <Marker
                                                     key={report.id}
                                                     position={{ lat: report.location.lat, lng: report.location.lng }}
@@ -328,20 +342,35 @@ const AdminDashboard = () => {
                                             className="w-full h-full object-cover"
                                             controls
                                         />
+                                    ) : selectedIncident.mediaType === 'audio' ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-4">
+                                            <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Audio Evidence</div>
+                                            <audio controls className="w-full h-10" src={selectedIncident.imageUrl} />
+                                        </div>
                                     ) : selectedIncident.imageUrl ? (
                                         <img
-                                            src={selectedIncident.imageUrl}
+                                            referrerPolicy="no-referrer"
+                                            src={
+                                                selectedIncident.imageUrl.includes('via.placeholder.com')
+                                                    ? selectedIncident.imageUrl.replace('via.placeholder.com', 'placehold.co')
+                                                    : selectedIncident.imageUrl === "https://placehold.co/300"
+                                                        ? "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Report+Image"
+                                                        : selectedIncident.imageUrl
+                                            }
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                             alt="Incident Evidence"
                                             onError={(e) => {
-                                                console.error("Image load failed:", selectedIncident.imageUrl);
+                                                console.error("Image load failed, hiding element:", selectedIncident.imageUrl);
                                                 e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'flex';
+                                                // Find the placeholder sibling and show it
+                                                const placeholder = e.target.parentElement.querySelector('.no-media-placeholder');
+                                                if (placeholder) placeholder.classList.remove('hidden');
+                                                if (placeholder) placeholder.classList.add('flex');
                                             }}
                                         />
                                     ) : null}
 
-                                    <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 ${selectedIncident.mediaType === 'video' || selectedIncident.imageUrl ? 'hidden' : 'flex'
+                                    <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 no-media-placeholder ${selectedIncident.mediaType === 'video' || selectedIncident.imageUrl ? 'hidden' : 'flex'
                                         }`}>
                                         <div className="bg-white dark:bg-slate-700 p-3 rounded-full mb-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
@@ -363,8 +392,27 @@ const AdminDashboard = () => {
                                         <span className="font-bold text-blue-900 dark:text-blue-100 text-xs">Gemini AI Detection</span>
                                     </div>
                                     <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                                        {selectedIncident.aiAnalysis ||
-                                            `System detected a ${selectedIncident.type} issue at this location with ${selectedIncident.aiConfidence || 85}% confidence.`}
+                                        {(() => {
+                                            if (!selectedIncident.aiAnalysis || selectedIncident.aiAnalysis === "Not Analyzed") {
+                                                if (selectedIncident.source === 'WhatsApp') {
+                                                    return `System detected a ${selectedIncident.type} issue with ${selectedIncident.aiConfidence || 0}% confidence (Simulated).`;
+                                                }
+                                                return `System detected a ${selectedIncident.type} issue at this location with ${selectedIncident.aiConfidence || 85}% confidence.`;
+                                            }
+                                            try {
+                                                // Try to parse if it's a JSON string
+                                                const analysis = typeof selectedIncident.aiAnalysis === 'string' && selectedIncident.aiAnalysis.startsWith('{')
+                                                    ? JSON.parse(selectedIncident.aiAnalysis)
+                                                    : selectedIncident.aiAnalysis;
+
+                                                if (typeof analysis === 'object') {
+                                                    return analysis.description || analysis.issue || "Detailed analysis available.";
+                                                }
+                                                return analysis;
+                                            } catch (e) {
+                                                return selectedIncident.aiAnalysis;
+                                            }
+                                        })()}
                                     </p>
                                 </div>
 
@@ -494,7 +542,11 @@ const TableRow = ({ id, address, img, type, priority, status, isSelected, onClic
                             <Video size={20} />
                         </div>
                     ) : (
-                        <img src={img} className="w-10 h-10 rounded-xl object-cover bg-slate-200 dark:bg-slate-700 shadow-sm" alt="" />
+                        <img
+                            src={img && img.includes('via.placeholder.com') ? img.replace('via.placeholder.com', 'placehold.co') : (img || 'https://placehold.co/100')}
+                            className="w-10 h-10 rounded-xl object-cover bg-slate-200 dark:bg-slate-700 shadow-sm"
+                            alt=""
+                        />
                     )}
                     <div>
                         <div className="font-bold text-slate-900 dark:text-white leading-tight">{id}</div>
@@ -516,16 +568,31 @@ const TableRow = ({ id, address, img, type, priority, status, isSelected, onClic
             <td className="px-6 py-4">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter ${status === 'Pending' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
                     status === 'Accepted' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                        status === 'Resolved' ? 'bg-green-50 text-green-600 border border-green-100' :
-                            'bg-slate-100 text-slate-500'
+                        status === 'Pending Address' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                            status === 'Resolved' ? 'bg-green-50 text-green-600 border border-green-100' :
+                                'bg-slate-100 text-slate-500'
                     }`}>
-                    {status}
+                    {status === 'Pending Address' ? 'Wait Address' : status}
                 </span>
             </td>
             <td className="px-6 py-4 text-right">
-                <button className="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-lg text-slate-400 transition-colors">
-                    <MoreVertical size={16} />
-                </button>
+                {status === 'Accepted' || priority === 'High' ? (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const targetArea = address ? address.split(',')[0] : 'General Area';
+                            navigate('/admin/broadcast', { state: { targetArea: targetArea } });
+                        }}
+                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                        title="Broadcast Alert to this Area"
+                    >
+                        <Send size={12} /> Alert
+                    </button>
+                ) : (
+                    <button className="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-lg text-slate-400 transition-colors">
+                        <MoreVertical size={16} />
+                    </button>
+                )}
             </td>
         </tr>
     );

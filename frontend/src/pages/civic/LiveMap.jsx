@@ -96,47 +96,67 @@ const LiveMap = () => {
                         />
 
                         {/* Incident Markers */}
-                        {pins.map(pin => {
-                            const isCritical = ['Fire & Safety', 'Medical/Ambulance', 'Police'].includes(pin.department) || pin.priority === 'Critical';
+                        {pins
+                            .filter(pin => pin.status !== 'Resolved') // Hide resolved issues
+                            .map(pin => {
+                                // Enhanced Critical Check including explicit SOS type
+                                const isCritical =
+                                    ['Fire & Safety', 'Medical/Ambulance', 'Police'].includes(pin.department) ||
+                                    pin.priority === 'Critical' ||
+                                    pin.type === 'SOS Emergency';
 
-                            if (isCritical) {
+                                // Determine Icon based on type
+                                let iconEmoji = '🚩';
+                                if (pin.type?.toLowerCase().includes('pothole')) iconEmoji = '🚧';
+                                else if (pin.type?.toLowerCase().includes('garbage')) iconEmoji = '🗑️';
+                                else if (pin.type?.toLowerCase().includes('light')) iconEmoji = '💡';
+                                else if (pin.type?.toLowerCase().includes('water')) iconEmoji = '💧';
+                                else if (pin.type?.toLowerCase().includes('fire')) iconEmoji = '🔥';
+                                else if (pin.type?.toLowerCase().includes('traffic')) iconEmoji = '🚦';
+                                else if (pin.type?.toLowerCase().includes('sos')) iconEmoji = '🚨'; // Fallback SOS icon
+
+                                if (isCritical) {
+                                    return (
+                                        <OverlayView
+                                            key={pin.id}
+                                            position={{ lat: parseFloat(pin.location.lat), lng: parseFloat(pin.location.lng) }}
+                                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                                            getPixelPositionOffset={(width, height) => ({ x: -(width / 2), y: -(height / 2) })}
+                                        >
+                                            <div
+                                                className="relative flex items-center justify-center w-16 h-16 cursor-pointer group z-50 hover:z-[60]"
+                                                onClick={() => setSelectedPin(pin)}
+                                            >
+                                                {/* Blinking Ring for SOS/Critical */}
+                                                <span className="absolute inline-flex h-full w-full rounded-full bg-red-600 opacity-75 animate-ping"></span>
+                                                <span className="absolute inline-flex h-10 w-10 rounded-full bg-red-500 opacity-40 animate-pulse"></span>
+
+                                                {/* Core Icon */}
+                                                <div className="relative w-12 h-12 bg-red-600 rounded-full shadow-xl flex items-center justify-center border-4 border-white z-10 text-white font-bold text-sm tracking-tighter">
+                                                    SOS
+                                                </div>
+                                            </div>
+                                        </OverlayView>
+                                    );
+                                }
+
                                 return (
                                     <OverlayView
                                         key={pin.id}
                                         position={{ lat: parseFloat(pin.location.lat), lng: parseFloat(pin.location.lng) }}
                                         mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                                        getPixelPositionOffset={(width, height) => ({ x: -(width / 2), y: -(height / 2) })}
                                     >
                                         <div
-                                            className="relative flex items-center justify-center w-12 h-12 transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
+                                            className="relative flex flex-col items-center justify-center cursor-pointer hover:scale-110 transition-transform hover:z-40"
                                             onClick={() => setSelectedPin(pin)}
                                         >
-                                            {/* Blinking Ring - Prediction 3: Emergency Escalation UI */}
-                                            <span className="absolute inline-flex h-full w-full rounded-full bg-red-600 opacity-75 animate-ping"></span>
-                                            <span className="absolute inline-flex h-8 w-8 rounded-full bg-red-500 opacity-50"></span>
-
-                                            {/* Core Icon */}
-                                            <div className="relative w-8 h-8 bg-red-600 rounded-full shadow-lg flex items-center justify-center border-2 border-white z-10 text-white font-bold text-xs">
-                                                SOS
-                                            </div>
+                                            <div className="text-3xl drop-shadow-md filter">{iconEmoji}</div>
+                                            <div className="w-2 h-2 bg-black/30 rounded-full blur-[1px] mt-[-2px]"></div>
                                         </div>
                                     </OverlayView>
                                 );
-                            }
-
-                            return (
-                                <Marker
-                                    key={pin.id}
-                                    position={{
-                                        lat: parseFloat(pin.location.lat),
-                                        lng: parseFloat(pin.location.lng)
-                                    }}
-                                    onClick={() => setSelectedPin(pin)}
-                                    icon={pin.status === 'Resolved'
-                                        ? "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
-                                        : "http://maps.google.com/mapfiles/ms/icons/red-dot.png"}
-                                />
-                            );
-                        })}
+                            })}
                     </GoogleMap>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full w-full bg-slate-200 dark:bg-slate-900 text-slate-500">

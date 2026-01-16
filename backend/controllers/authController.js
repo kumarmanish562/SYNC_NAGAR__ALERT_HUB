@@ -260,10 +260,18 @@ exports.verifyOtp = async (req, res) => {
                 if (uid) {
                     const userSnap = await db.ref(`users/registry/${uid}`).once('value');
                     const userData = userSnap.val();
-                    const city = userData?.city || (userData?.address ? userData.address.split(',')[0].trim() : "General");
 
-                    if (userData?.mobile && city) {
-                        joinCityCommunity(userData.mobile, city).catch(e => console.error("Community Join Error", e));
+                    if (userData?.mobile) {
+                        try {
+                            let phoneNumber = userData.mobile.replace(/\D/g, '');
+                            if (phoneNumber.length === 10) phoneNumber = '91' + phoneNumber;
+
+                            // Send strict "Login Verified" message instead of Group Invite
+                            await sendMessage(phoneNumber, `✅ *Verification Successful*\n\nYou have successfully logged in to Nagar Alert Hub.`);
+                            console.log(`[AUTH] Sent verification success message to ${phoneNumber}`);
+                        } catch (msgErr) {
+                            console.error("[AUTH] Failed to send success message:", msgErr.message);
+                        }
                     }
                 }
 

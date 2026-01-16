@@ -83,7 +83,7 @@ const WhatsAppSimulator = () => {
                             messages: [{
                                 from: "919999999999",
                                 type: "image",
-                                image: { link: "https://via.placeholder.com/300", caption: "Simulated Report" }
+                                image: { link: "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Civic+Issue", caption: "Simulated Report" }
                             }]
                         })
                     });
@@ -116,8 +116,8 @@ const WhatsAppSimulator = () => {
                 {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] rounded-lg p-3 text-sm shadow-sm relative ${msg.sender === 'user'
-                                ? 'bg-[#d9fdd3] dark:bg-green-900 text-slate-800 dark:text-slate-100 rounded-tr-none'
-                                : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'
+                            ? 'bg-[#d9fdd3] dark:bg-green-900 text-slate-800 dark:text-slate-100 rounded-tr-none'
+                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'
                             }`}>
                             {msg.type === 'image' ? (
                                 <div className="mb-1 rounded overflow-hidden">

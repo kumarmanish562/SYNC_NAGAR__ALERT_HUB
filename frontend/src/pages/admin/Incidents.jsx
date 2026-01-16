@@ -139,7 +139,12 @@ const IncidentList = () => {
                                 {/* Image Section */}
                                 <div className="h-48 relative overflow-hidden">
                                     <img
-                                        src={incident.imageUrl || 'https://via.placeholder.com/400x200?text=No+Image'}
+                                        referrerPolicy="no-referrer"
+                                        src={
+                                            incident.imageUrl && (incident.imageUrl.includes('placehold.co') || incident.imageUrl.includes('placeholder.com'))
+                                                ? (incident.imageUrl.includes('/300') ? "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Report+Image" : incident.imageUrl)
+                                                : (incident.imageUrl || 'https://placehold.co/400x200?text=No+Image')
+                                        }
                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                         alt="Incident"
                                     />

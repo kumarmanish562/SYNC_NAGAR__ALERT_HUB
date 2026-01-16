@@ -9,9 +9,9 @@ import { toast } from 'react-hot-toast';
 const Broadcast = () => {
     const { currentUser } = useAuth();
     const location = useLocation();
-    const [target, setTarget] = useState('Sector 4');
+    const [target, setTarget] = useState(location.state?.targetArea || 'Sector 4');
     const [type, setType] = useState('Fire Alert');
-    const [message, setMessage] = useState('URGENT: Fire reported at Central Market. Please avoid the area and keep roads clear for emergency vehicles.');
+    const [message, setMessage] = useState('');
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
     const [history, setHistory] = useState([]);
@@ -49,8 +49,7 @@ const Broadcast = () => {
                 const list = Object.keys(data).map(key => ({
                     id: key,
                     ...data[key]
-                })).filter(b => b.department === currentUser?.department)
-                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); // Removed strict department filter to show global history
                 setHistory(list);
             }
         });
@@ -118,7 +117,7 @@ const Broadcast = () => {
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Issue Type</label>
                                 <div className="flex gap-2 flex-wrap">
-                                    {['Fire Alert', 'Road Block', 'Water Issue', 'General'].map(t => (
+                                    {Array.from(new Set([currentUser?.department || 'General', 'Critical Alert', 'General Announcement'])).map(t => (
                                         <button
                                             key={t}
                                             onClick={() => setType(t)}
@@ -131,7 +130,32 @@ const Broadcast = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Message Content</label>
+                                <label className="flex items-center justify-between text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                                    Message Content
+                                    <button
+                                        onClick={async () => {
+                                            if (!target || !type) return toast.error("Select Target & Type first");
+                                            setMessage("Generating AI Alert...");
+                                            try {
+                                                // Basic simulation of AI generation for now to avoid complexity, or call backend if needed.
+                                                // Ideally detailed AI endpoint, but for now template based on department.
+                                                const templates = [
+                                                    `🚨 *${type.toUpperCase()} ALERT for ${target.toUpperCase()}*\n\nAuthorities have reported a ${type.toLowerCase()} in your area. Please exercise caution and follow official instructions.\n\n- ${currentUser?.department || 'City Admin'}`,
+                                                    `⚠️ *URGENT UPDATE: ${target}*\n\nWe are detecting ${type.toLowerCase()} issues. Teams are dispatched. Stay clear of the affected zone.\n\n- Nagar Alert Hub`,
+                                                    `📢 *Official Announcement for ${target}*\n\nRegarding ${type}: Please be advised that maintenance is scheduled. Plan your commute accordingly.`
+                                                ];
+                                                // Pick one based on type urgency (simplified random for demo)
+                                                setTimeout(() => setMessage(templates[0]), 800);
+                                            } catch (e) {
+                                                setMessage("");
+                                                toast.error("AI Generation Failed");
+                                            }
+                                        }}
+                                        className="text-xs flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+                                    >
+                                        <div className="w-3 h-3">✨</div> AI Generate
+                                    </button>
+                                </label>
                                 <textarea
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}

@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
 
                 const syncProfile = async (authData) => {
                     try {
-                        const res = await fetch('http://127.0.0.1:5001/api/auth/sync-profile', {
+                        const res = await fetch('http://localhost:5001/api/auth/sync-profile', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: user.uid })
@@ -140,7 +140,7 @@ export function AuthProvider({ children }) {
         const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         try {
-            await fetch('http://127.0.0.1:5001/api/auth/google-login', {
+            await fetch('http://localhost:5001/api/auth/google-login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken: await result.user.getIdToken() })
@@ -154,7 +154,7 @@ export function AuthProvider({ children }) {
     const register = async (userData) => {
         setLoading(true);
         try {
-            const response = await fetch('http://127.0.0.1:5001/api/auth/register', {
+            const response = await fetch('http://localhost:5001/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
@@ -201,16 +201,7 @@ export function AuthProvider({ children }) {
 
     return (
         <AuthContext.Provider value={value}>
-            {loading ? (
-                <div className="fixed inset-0 flex items-center justify-center bg-white dark:bg-slate-900 z-50">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-slate-500 font-medium">Loading Nagar Alert Hub...</p>
-                    </div>
-                </div>
-            ) : (
-                children
-            )}
+            {children}
         </AuthContext.Provider>
     );
 }

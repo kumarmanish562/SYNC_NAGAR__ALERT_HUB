@@ -77,15 +77,18 @@ const AdminMap = () => {
                         }}
                     >
                         {incidents.map((incident) => (
-                            <Marker
-                                key={incident.id}
-                                position={{ lat: incident.location?.lat, lng: incident.location?.lng }}
-                                onClick={() => setSelectedIncident(incident)}
-                                icon={{
-                                    url: incident.status === 'Resolved' ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
-                                }}
-                            />
-                        ))}
+                            incident.location &&
+                            typeof incident.location.lat === 'number' && !isNaN(incident.location.lat) &&
+                            typeof incident.location.lng === 'number' && !isNaN(incident.location.lng) && (
+                                <Marker
+                                    key={incident.id}
+                                    position={{ lat: incident.location.lat, lng: incident.location.lng }}
+                                    onClick={() => setSelectedIncident(incident)}
+                                    icon={{
+                                        url: incident.status === 'Resolved' ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                                    }}
+                                />
+                            )))}
 
                         {selectedIncident && (
                             <InfoWindow
@@ -95,7 +98,7 @@ const AdminMap = () => {
                                 <div className="p-2 min-w-[250px] max-w-[300px]">
                                     <div className="flex gap-3 mb-3">
                                         <img
-                                            src={selectedIncident.imageUrl || 'https://via.placeholder.com/100'}
+                                            src={selectedIncident.imageUrl || 'https://placehold.co/100'}
                                             className="w-16 h-16 rounded-lg object-cover border border-slate-100"
                                             alt="Incident"
                                         />

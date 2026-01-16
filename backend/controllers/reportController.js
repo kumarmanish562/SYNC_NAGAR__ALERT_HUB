@@ -2,12 +2,23 @@ const { VertexAI } = require('@google-cloud/vertexai');
 const { db } = require('../config/firebase');
 
 // Initialize Vertex AI
+// Initialize Vertex AI
 const vertex_ai = new VertexAI({
     project: process.env.GCP_PROJECT_ID,
-    location: process.env.GCP_LOCATION || 'us-central1'
+    location: 'us-central1' // Hardcoded as per user objective
 });
-const modelName = 'gemini-1.5-flash-001';
-const generativeModel = vertex_ai.getGenerativeModel({ model: modelName });
+// --- FASTEST AVAILABLE MODEL ---
+// Using Gemini 2.0 Flash (Version 001) for maximum speed
+const modelName = 'gemini-2.0-flash-001';
+console.log(`🚀 Speed Mode: Vertex AI Controller using '${modelName}'`);
+
+const generativeModel = vertex_ai.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.0, // Zero creativity for strict rule following
+    },
+});
 
 const sanitizeKey = (key) => {
     if (!key) return "General";
@@ -29,16 +40,36 @@ exports.verifyReportImage = async (req, res) => {
     try {
         console.log("[AI] Analyzing image for type:", type);
 
-        const prompt = `Analyze this image. Does it show a valid civic issue related to '${type}'? 
-        If the issue is visible, set isValid to true. 
-        Possible categories: Police, Traffic, Fire & Safety, Medical/Ambulance, Municipal/Waste, Electricity Board, Water Supply.
-        Return ONLY a JSON object:
-        {
-          "isValid": boolean,
-          "confidence": number,
-          "description": "Short summary",
-          "category": "detected_category"
-        }`;
+        const prompt = `
+  You are a filtering algorithm designed to REJECT Stock Photos and Staged Images.
+  Do not act as a "helper". Your job is to BLOCK fake reports.
+
+  Analyze the visual style of this image.
+
+  CRITICAL FAIL CONDITIONS (If any are true, verified = false):
+  1. **Cinematic Lighting:** Is there dramatic blue/orange lighting, backlighting, or perfect studio lighting? (Real civic photos are flat/dull).
+  2. **Staged Action:** Does it look like a movie scene? (e.g. A burglar in a mask "sneaking", a model posing)?
+  3. **High Production Value:** Is the image sharp, perfectly framed, with artistic bokeh (blur)? (Real citizen photos are often blurry, messy, and poorly framed).
+  4. **Digital Marks:** Watermarks, text overlays, UI bars (screenshots).
+
+  If it looks like a Stock Photo of a crime, you MUST REJECT it. 
+  "Stock photo of a burglar" is NOT a valid report. It is a FAKE.
+
+  Only accept the image if it looks like a **boring, amateur, low-quality photo** taken by a pedestrian in the street.
+
+  If valid (Real Photo):
+  Identify the department: Municipal/Waste, Roads & Transport, Electricity Board, Water Supply, Traffic, Fire & Safety, Medical/Ambulance, Police.
+
+  RETURN JSON ONLY:
+  {
+    "verified": boolean,
+    "department": "Name" or null,
+    "detected_issue": "Short Title",
+    "explanation": "REJECTED: [Reason] OR ACCEPTED: [Description]",
+    "severity": "Low" | "Medium" | "High" | "Critical",
+    "ai_confidence": number
+  }
+`;
 
         // Detect mime type
         const mimeType = imageBase64.match(/^data:([^;]+);base64,/)?.[1] || "image/jpeg";
@@ -52,7 +83,13 @@ exports.verifyReportImage = async (req, res) => {
         };
 
         const request = {
-            contents: [{ role: 'user', parts: [imagePart, { text: prompt }] }]
+            contents: [{
+                role: 'user',
+                parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: mimeType, data: base64Data } }
+                ]
+            }]
         };
 
         const result = await generativeModel.generateContent(request);
@@ -178,7 +215,15 @@ exports.createReport = async (req, res) => {
                     const currentData = snapshot.val();
                     await citizenRef.update({
                         reportsCount: (currentData.reportsCount || 0) + 1,
-                        points: (currentData.points || 0) + 10 // Award 10 points per report
+                        points: (currentData.points || 0) + 10
+                    });
+                } else {
+                    // Initialize if missing
+                    await citizenRef.set({
+                        reportsCount: 1,
+                        points: 10,
+                        level: 1,
+                        joinedAt: new Date().toISOString()
                     });
                 }
             } catch (err) { console.error("Update User Stats Error", err); }
@@ -189,6 +234,30 @@ exports.createReport = async (req, res) => {
     } catch (error) {
         console.error("Create Report Error:", error);
         res.status(500).json({ error: "Failed to create report", details: error.message });
+    }
+};
+
+// NEW: Get ALL Reports for Admin (Global View)
+exports.getAllReports = async (req, res) => {
+    try {
+        console.log("[BACKEND] Fetching ALL reports (Global View)");
+        const reportsRef = db.ref('reports');
+        const snapshot = await reportsRef.once('value');
+
+        if (!snapshot.exists()) {
+            return res.status(200).json({ reports: [] });
+        }
+
+        const data = snapshot.val();
+        const reports = Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+        })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.status(200).json({ reports });
+    } catch (error) {
+        console.error("Get All Reports Error:", error);
+        res.status(500).json({ error: "Failed to fetch all reports" });
     }
 };
 
@@ -336,34 +405,49 @@ exports.updateReportStatus = async (req, res) => {
         await db.ref().update(updates);
 
         // --- 1. AUTOMATIC BROADCAST ON VERIFICATION ---
-        // If Admin accepts/verifies, alert the whole community in that area.
-        if (status.toLowerCase() === 'accepted' || status.toLowerCase() === 'verified') {
-            const { broadcastTargetedAlert } = require('./whatsappController');
-            const address = report.location?.address || "";
-            // Heuristic: Try to get City/Area (2nd part of address) or fallback to 1st part
-            const parts = address.split(',');
-            const targetArea = (parts.length > 1 ? parts[parts.length - 2] : parts[0] || "General").trim();
+        // If Admin accepts/verifies or resolves, alert logic may vary, but points should trigger.
+        // We award points on meaningful status changes.
+        const positiveStatuses = ['accepted', 'verified', 'resolved'];
+        if (positiveStatuses.includes(status.toLowerCase())) {
 
-            const alertMsg = `📢 *OFFICIAL ALERT: ${targetArea}*\n\nAdmin has verified a High Priority report (ID: ${reportId.slice(0, 6)}).\nTeams have been dispatched.\n\n📍 Location: ${address}`;
-
-            console.log(`[AUTO-BROADCAST] Triggering alert for ${targetArea}`);
-            // Trigger asynchronously
-            broadcastTargetedAlert(targetArea, alertMsg).catch(err => console.error("Auto-Broadcast Failed:", err));
+            // Only broadcast alert on Verified/Accepted (urgent), Resolved usually is silent or just notify user.
+            if (status.toLowerCase() !== 'resolved') {
+                try {
+                    const { broadcastTargetedAlert } = require('./whatsappController');
+                    const address = report.location?.address || "";
+                    const parts = address.split(',');
+                    const targetArea = (parts.length > 1 ? parts[parts.length - 2] : parts[0] || "General").trim();
+                    const alertMsg = `📢 *OFFICIAL ALERT: ${targetArea}*\n\nAdmin has verified a High Priority report (ID: ${reportId.slice(0, 6)}).\nTeams have been dispatched.\n\n📍 Location: ${address}`;
+                    console.log(`[AUTO-BROADCAST] Triggering alert for ${targetArea}`);
+                    broadcastTargetedAlert(targetArea, alertMsg).catch(err => console.error("Auto-Broadcast Failed:", err));
+                } catch (bcError) {
+                    console.error("Broadcast logic error:", bcError);
+                }
+            }
 
             // --- GAMIFICATION: AWARD POINTS ---
-            // If user is registered (UID > 15 chars), give points
+            // Award points for Verified/Accepted (50) and Resolved (100)
             if (report.userId && report.userId.length > 15) {
                 const uid = report.userId;
-                console.log(`[GAMIFICATION] Awarding 50 points to User ${uid}`);
+                const pointsToAward = status.toLowerCase() === 'resolved' ? 100 : 50; // Higher reward for resolution
+
+                console.log(`[GAMIFICATION] Awarding ${pointsToAward} points to User ${uid} for status ${status}`);
                 const userRef = db.ref(`users/citizens/${uid}`);
 
                 // Transactional update for safety
                 userRef.transaction((user) => {
-                    if (user) {
-                        user.points = (user.points || 0) + 50;
-                        user.reportsCount = (user.reportsCount || 0) + 1;
-                        user.level = Math.floor((user.points + 50) / 100) + 1; // Simple Level up logic
+                    if (!user) {
+                        // Initialize if non-existent
+                        return {
+                            points: pointsToAward,
+                            reportsCount: 1,
+                            level: 1,
+                            joinedAt: new Date().toISOString()
+                        };
                     }
+                    user.points = (user.points || 0) + pointsToAward;
+                    // Auto-increment level logic (simple threshold: every 100 points)
+                    user.level = Math.floor(((user.points || 0) + pointsToAward) / 100) + 1;
                     return user;
                 }).catch(err => console.error("Gamification Error:", err));
             }
@@ -487,7 +571,7 @@ exports.getNearbyReports = async (req, res) => {
 
         Object.keys(allReports).forEach(key => {
             const r = allReports[key];
-            if (r.location && r.location.lat && r.location.lng) {
+            if (r.location && r.location.lat && r.location.lng && r.location.lat !== 0) {
                 const target = turf.point([parseFloat(r.location.lng), parseFloat(r.location.lat)]);
                 const distance = turf.distance(center, target, { units: 'kilometers' });
 

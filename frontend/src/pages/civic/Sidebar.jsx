@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Map, FileText, BarChart2, User, Shield,
-    AlertTriangle, Camera, TrendingUp, MessageCircle, Bell, LogOut
+    AlertTriangle, Camera, TrendingUp, MessageCircle, Bell, LogOut, Award
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen }) => {
@@ -49,8 +49,8 @@ const Sidebar = ({ isOpen }) => {
                 <SidebarItem
                     icon={<Camera size={20} />}
                     label="New Report"
-                    to="/report"
-                    active={isActive('/report')}
+                    to="/civic/report"
+                    active={isActive('/civic/report')}
                     expanded={isOpen}
                 />
                 <SidebarItem
@@ -71,11 +71,12 @@ const Sidebar = ({ isOpen }) => {
                     active={isActive('/leaderboard')}
                     expanded={isOpen}
                 />
+
                 <SidebarItem
-                    icon={<TrendingUp size={20} />}
-                    label="City Stats"
-                    to="/civic/stats"
-                    active={isActive('/civic/stats')}
+                    icon={<Award size={20} />}
+                    label="Achievements"
+                    to="/civic/achievements"
+                    active={isActive('/civic/achievements')}
                     expanded={isOpen}
                 />
 

@@ -139,7 +139,8 @@ const IncidentDetail = () => {
                             </div>
                             <div className="group relative rounded-[2rem] overflow-hidden bg-slate-100 dark:bg-slate-900 aspect-video">
                                 <img
-                                    src={report.imageUrl || "https://via.placeholder.com/800x450"}
+                                    referrerPolicy="no-referrer"
+                                    src={(report.imageUrl && report.imageUrl.includes('via.placeholder.com')) ? report.imageUrl.replace('via.placeholder.com', 'placehold.co') : (report.imageUrl || "https://placehold.co/800x450")}
                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                                     alt="Incident Evidence"
                                 />

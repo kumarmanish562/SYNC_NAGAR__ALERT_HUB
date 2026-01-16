@@ -24,18 +24,42 @@ const Dashboard = () => {
                 const data = snapshot.val();
                 const reportsArray = Object.values(data);
 
-                // Filter specifically for the current user (Private Dashboard)
+                // Filter specifically for the current user (Private Stats)
                 const userReports = reportsArray.filter(r => {
                     const cleanMobile = currentUser?.mobile?.replace(/\D/g, '') || "";
-                    const reportUser = (r.userId || "").replace(/\D/g, ""); // Normalize if phone
+                    const reportUser = (r.userId || "").replace(/\D/g, "");
                     return r.userId === currentUser?.uid || (cleanMobile && reportUser.includes(cleanMobile));
                 });
 
+                // Filter for SAME AREA/CITY (Public Stream for this user's area)
+                // "No other city" logic: Match the city name from the user's profile address.
+                let areaReports = [];
+                if (currentUser?.address) {
+                    const userAddrParts = currentUser.address.split(',');
+                    // Assistive Heuristic: Assume City is the last or 2nd to last part if address is comma separated
+                    // e.g. "123 St, Sector 1, Noida" -> "Noida"
+                    const userCity = userAddrParts.length > 1
+                        ? userAddrParts[userAddrParts.length - 1].trim().toLowerCase()
+                        : currentUser.address.toLowerCase();
+
+                    areaReports = reportsArray.filter(r => {
+                        const rAddr = (r.location?.address || "").toLowerCase();
+                        return rAddr.includes(userCity);
+                    });
+                } else {
+                    // Fallback: If user has no address, show everything or nothing? 
+                    // Let's show everything to encourage them to set address, or keep same as userReports
+                    areaReports = reportsArray;
+                }
+
+                // Stats are PERSONAL
                 const pending = userReports.filter(r => r.status === 'Pending').length;
                 const resolved = userReports.filter(r => r.status === 'Resolved' || r.status === 'Accepted').length;
                 setStats({ total: userReports.length, pending, resolved });
 
-                const sorted = userReports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
+                // Stream is LOCAL COMMUNITY (Area Reports)
+                // Sort by newest first
+                const sorted = areaReports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 10);
                 setRecentReports(sorted);
             }
         });
@@ -81,7 +105,7 @@ const Dashboard = () => {
                 <div className="lg:col-span-2 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <ActionCard
-                            to="/report"
+                            to="/civic/report"
                             title="Report Issue"
                             icon={<Camera size={28} />}
                             color="bg-slate-900 dark:bg-slate-800 text-white"
@@ -109,7 +133,7 @@ const Dashboard = () => {
                                         key={index}
                                         icon={report.type === 'pothole' ? '🚧' : report.type === 'garbage' ? '🗑️' : '🚩'}
                                         title={`${report.type} Reported`}
-                                        loc={`Lat: ${report.location?.lat?.toFixed(4) || '??'}`}
+                                        loc={report.location?.address || (report.location?.lat ? `Lat: ${report.location.lat.toString().slice(0, 7)}` : 'Location N/A')}
                                         time={new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         status={report.status}
                                     />
