@@ -61,10 +61,13 @@ const SOS = () => {
                                 lat: loc.lat.toString(),
                                 lng: loc.lng.toString(),
                                 address: finalAddress
+
+
                             },
                         };
 
-                        await fetch('http://127.0.0.1:5001/api/reports/create', {
+                        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                        await fetch(`${API_BASE_URL}/api/reports/create`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(reportData)

@@ -68,8 +68,9 @@ const Dashboard = () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 try {
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
                     const { latitude, longitude } = pos.coords;
-                    const res = await fetch(`http://127.0.0.1:5001/api/reports/nearby?lat=${latitude}&lng=${longitude}&radius=5`);
+                    const res = await fetch(`${API_BASE_URL}/api/reports/nearby?lat=${latitude}&lng=${longitude}&radius=5`);
                     if (res.ok) {
                         const data = await res.json();
                         setNearbyReports(data.reports || []);

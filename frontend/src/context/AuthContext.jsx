@@ -37,7 +37,8 @@ export function AuthProvider({ children }) {
 
                 const syncProfile = async (authData) => {
                     try {
-                        const res = await fetch('http://localhost:5001/api/auth/sync-profile', {
+                        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                        const res = await fetch(`${API_BASE_URL}/api/auth/sync-profile`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: user.uid })
@@ -140,7 +141,8 @@ export function AuthProvider({ children }) {
         const provider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, provider);
         try {
-            await fetch('http://localhost:5001/api/auth/google-login', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            await fetch(`${API_BASE_URL}/api/auth/google-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken: await result.user.getIdToken() })
@@ -154,7 +156,8 @@ export function AuthProvider({ children }) {
     const register = async (userData) => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:5001/api/auth/register', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)

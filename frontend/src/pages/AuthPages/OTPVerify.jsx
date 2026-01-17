@@ -87,7 +87,8 @@ const OTPVerify = () => {
         const reqType = type === 'mobile' ? 'whatsapp' : type;
 
         try {
-            const res = await fetch(`http://localhost:5001/api/auth/send-otp`, {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: reqType, contact })
@@ -117,7 +118,8 @@ const OTPVerify = () => {
             // but the backend handles 'whatsapp' type differentiation. Frontend here strictly sends 'mobile' or 'email' types based on UI)
             // However, the backend 'verify-otp' reads contact directly.
 
-            const res = await fetch(`http://localhost:5001/api/auth/verify-otp`, {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contact, otp, uid })
@@ -132,7 +134,8 @@ const OTPVerify = () => {
                 // PROACTIVE: Sync Profile & Join Community if mobile is verified
                 if (type === 'mobile') {
                     try {
-                        await fetch('http://localhost:5001/api/auth/sync-profile', {
+                        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                        await fetch(`${API_BASE_URL}/api/auth/sync-profile`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid, joinCommunity: true })

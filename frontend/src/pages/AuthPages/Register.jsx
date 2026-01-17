@@ -97,7 +97,8 @@ export default function Register() {
             // Request WhatsApp OTP immediately after registration
             try {
                 if (userType === 'citizen' && formData.mobile) {
-                    await fetch('http://127.0.0.1:5001/api/auth/send-otp', {
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                    await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ type: 'whatsapp', contact: formData.mobile })

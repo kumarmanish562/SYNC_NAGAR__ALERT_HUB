@@ -23,7 +23,8 @@ const ReportDetail = () => {
     React.useEffect(() => {
         const fetchReport = async () => {
             try {
-                const res = await fetch(`http://127.0.0.1:5001/api/reports/${id}`);
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                const res = await fetch(`${API_BASE_URL}/api/reports/${id}`);
                 const data = await res.json();
 
                 if (res.ok && data.report) {

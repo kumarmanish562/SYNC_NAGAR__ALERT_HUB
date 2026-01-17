@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+console.log("✅ [DEBUG] reportRoutes.js LOADED");
 const {
     verifyReportImage,
     createReport,
@@ -11,6 +12,11 @@ const {
     sendBroadcast,
     getNearbyReports
 } = require('../controllers/reportController');
+
+router.get('/test', (req, res) => {
+    console.log("[DEBUG] /api/reports/test HIT");
+    res.json({ message: "Reports Route Working" });
+});
 
 router.post('/verify-image', verifyReportImage);
 router.post('/create', createReport);

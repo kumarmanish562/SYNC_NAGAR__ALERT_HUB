@@ -40,7 +40,7 @@ const WhatsAppSimulator = () => {
                     time: getCurrentTime()
                 };
                 setMessages(prev => [...prev, userMsg]);
-                simulateBotResponse('__IMAGE__');
+                simulateBotResponse(e.target.result); // Pass Data URI
             };
             reader.readAsDataURL(file);
         }
@@ -52,10 +52,10 @@ const WhatsAppSimulator = () => {
             let responseText = '';
             const lowerInput = userInput.toLowerCase();
 
-            if (lowerInput === '__image__') {
+            if (lowerInput === '__image__' || lowerInput.startsWith('data:')) {
                 // Determine mock response for image
                 await new Promise(r => setTimeout(r, 1000)); // Simulate processing
-                responseText = `✅ Report Received!\n\nID: #RPT-${Math.floor(1000 + Math.random() * 9000)}\nLocation: Auto-Detected (Sector 4)\nStatus: Pending Verification`;
+                responseText = `✅ *Verified & Accepted*\n\nIssue: Waste\nSeverity: Medium\n\nYour report has been sent to the authorities!\n\n📍 *Action Required:* Please reply with the *Location/Address* to finalize.`;
             } else if (lowerInput.includes('start') || lowerInput.includes('hi')) {
                 responseText = 'Great! Please send a photo of the incident (Pothole, Garbage, etc).';
             } else if (lowerInput.includes('status')) {
@@ -74,16 +74,22 @@ const WhatsAppSimulator = () => {
             setIsTyping(false);
 
             // Optional: Actually Trigger Webhook (Mock functionality)
-            if (lowerInput === '__image__') {
+            if (lowerInput === '__image__' || lowerInput.startsWith('data:')) {
                 try {
-                    await fetch('http://127.0.0.1:5001/api/whatsapp/webhook', {
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                    await fetch(`${API_BASE_URL}/api/whatsapp/webhook`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             messages: [{
                                 from: "919999999999",
                                 type: "image",
-                                image: { link: "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Civic+Issue", caption: "Simulated Report" }
+                                // Use the input if it's a string (unlikely here) or use the last message if available
+                                // Better: Pass the data URI directly. We need to access it.
+                                image: {
+                                    link: userInput.startsWith('data:') ? userInput : "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Civic+Issue",
+                                    caption: "Simulated Report"
+                                }
                             }]
                         })
                     });

@@ -20,7 +20,8 @@ const Broadcast = () => {
         if (location.state?.incidentId) {
             const fetchIncidentDetails = async () => {
                 try {
-                    const res = await fetch(`http://127.0.0.1:5001/api/reports/${location.state.incidentId}`);
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                    const res = await fetch(`${API_BASE_URL}/api/reports/${location.state.incidentId}`);
                     if (res.ok) {
                         const data = await res.json();
                         if (data.report) {
@@ -61,7 +62,8 @@ const Broadcast = () => {
         setSending(true);
 
         try {
-            const res = await fetch('http://127.0.0.1:5001/api/reports/broadcast', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const res = await fetch(`${API_BASE_URL}/api/reports/broadcast`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

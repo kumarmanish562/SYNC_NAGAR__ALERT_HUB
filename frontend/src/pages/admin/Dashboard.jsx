@@ -61,8 +61,9 @@ const AdminDashboard = () => {
         const fetchFromApi = async () => {
             try {
                 // TEMP DEBUG: Fetch ALL reports regardless of department
-                // const res = await fetch(`http://127.0.0.1:5001/api/reports/department/${encodeURIComponent(sanitizedDept)}`);
-                const res = await fetch(`http://127.0.0.1:5001/api/reports`); // FETCH EVERYTHING
+
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                const res = await fetch(`${API_BASE_URL}/api/reports`); // FETCH EVERYTHING
                 if (res.ok) {
                     const data = await res.json();
                     if (data.reports) {
@@ -151,7 +152,8 @@ const AdminDashboard = () => {
             const statusLabel = newStatus === 'Rejected' ? 'Rejected - Unconventional Report' : newStatus;
 
             // Use Backend API to bypass client permission rules
-            const res = await fetch('http://127.0.0.1:5001/api/reports/update-status', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const res = await fetch(`${API_BASE_URL}/api/reports/update-status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -15,7 +15,8 @@ const WhatsAppGuide = () => {
         if (!currentUser) return;
         setLoading(true);
         try {
-            const res = await fetch('http://127.0.0.1:5001/api/auth/join-community', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const res = await fetch(`${API_BASE_URL}/api/auth/join-community`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ uid: currentUser.uid })

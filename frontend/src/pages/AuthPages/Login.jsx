@@ -21,6 +21,8 @@ export default function Login() {
 
     const [isLoading, setIsLoading] = useState(false);
 
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+
     // Note: Auto-redirect removed to allow OTP flow for email logins.
     // We only redirect if User is ALREADY authenticated on page load (clean session check),
     // but not immediately during the login function flow to avoid race conditions with OTP step.
@@ -46,7 +48,7 @@ export default function Login() {
             const uid = userCredential.user.uid;
 
             // 2. Credentials matched. Now send OTP to Email.
-            const response = await fetch(`http://127.0.0.1:5001/api/auth/send-otp`, {
+            const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: 'email', contact: cleanEmail })

@@ -1,4 +1,6 @@
 // Real Backend Service
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+
 export const verifyImageWithAI = async (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -6,7 +8,7 @@ export const verifyImageWithAI = async (file) => {
         reader.onload = async () => {
             const base64 = reader.result;
             try {
-                const response = await fetch('http://127.0.0.1:5001/api/reports/verify-image', {
+                const response = await fetch(`${API_BASE_URL}/api/reports/verify-image`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ imageBase64: base64, type: 'general' })
@@ -32,7 +34,7 @@ export const verifyImageWithAI = async (file) => {
 };
 
 export const submitReportToBackend = async (data) => {
-    const response = await fetch('http://127.0.0.1:5001/api/reports/create', {
+    const response = await fetch(`${API_BASE_URL}/api/reports/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)

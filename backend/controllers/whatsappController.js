@@ -5,8 +5,15 @@ const { v4: uuidv4 } = require('uuid');
 
 // Helper to download media
 // Helper to download media
+// Helper to download media
 async function downloadMedia(url) {
     try {
+        // Handle Data URIs (from Simulator)
+        if (url && url.startsWith('data:')) {
+            // Remove prefix (e.g. "data:image/png;base64,")
+            return url.split(',')[1];
+        }
+
         const config = { responseType: 'arraybuffer' };
 
         // Only attach generic Whapi token if it's NOT a known public test URL
@@ -166,25 +173,26 @@ exports.handleWebhook = async (req, res) => {
         if (senderNumber === cleanAdmin || senderNumber === '919999999999') { // Authorize Admin (Simulator too)
             if (body.startsWith("VERIFY") || body.startsWith("REJECT")) {
                 const action = body.startsWith("VERIFY") ? "Accepted" : "Rejected";
+                const statusLabel = action === 'Rejected' ? 'Rejected - Unconventional Report' : action;
                 const reportId = body.split(" ")[1];
 
                 if (reportId) {
-                    await db.ref(`reports/${reportId}`).update({ status: action });
+                    await db.ref(`reports/${reportId}`).update({ status: statusLabel });
                     const reportSnap = await db.ref(`reports/${reportId}`).once('value');
                     const report = reportSnap.val();
 
                     if (report?.department) {
                         const deptKey = report.department.replace(/[\/\.#\$\[\]]/g, "_");
-                        await db.ref(`reports/by_department/${deptKey}/${reportId}`).update({ status: action });
+                        await db.ref(`reports/by_department/${deptKey}/${reportId}`).update({ status: statusLabel });
                     }
 
                     await sendMessage(from, `${action === 'Accepted' ? '✅' : '❌'} Report ${reportId} ${action}.`);
 
                     // Notify User
                     if (report && report.userPhone) {
-                        const msg = action === 'Accepted'
-                            ? `✅ Your report (ID: ${reportId}) has been VERIFIED and accepted! Teams are on the way.`
-                            : `❌ Your report (ID: ${reportId}) has been REJECTED. Valid reasons include: Fake image, Duplicate, or Unclear.`;
+                        const shortId = reportId.slice(-6).toUpperCase();
+                        const msg = `ℹ️ *Status Update*\n🆔 Report #${shortId}\n\nCurrent Status: *${statusLabel}*`;
+
                         await sendMessage(report.userPhone, msg);
                     }
                 }
@@ -202,9 +210,10 @@ exports.handleWebhook = async (req, res) => {
         let mediaType = type;
 
         // A. HANDLE MEDIA (Image, Video, Audio)
+        let mediaBase64 = null; // Scope fix
         if (type === 'image' || type === 'video' || type === 'audio') { // Voice Note is 'audio' or 'ppt' (check Whapi docs, usually audio)
             isReport = true;
-            await sendMessage(from, "🔍 Analyzing media for authenticity... Please wait.");
+            await sendMessage(from, "🔍 Analyzing image for authenticity... Please wait.");
 
             const isVideo = type === 'video';
             const isAudio = type === 'audio' || type === 'voice';
@@ -213,7 +222,7 @@ exports.handleWebhook = async (req, res) => {
             mediaType = isAudio ? 'audio' : (isVideo ? 'video' : 'image');
 
             if (mediaUrl) {
-                const mediaBase64 = await downloadMedia(mediaUrl);
+                mediaBase64 = await downloadMedia(mediaUrl);
                 if (mediaBase64) {
                     aiResult = await analyzeMedia(mediaBase64, mimeType);
                 }
@@ -237,7 +246,7 @@ exports.handleWebhook = async (req, res) => {
                     const deptKey = (reportData.department || "General").replace(/[\/\.#\$\[\]]/g, "_");
                     await db.ref(`reports/by_department/${deptKey}/${reportData.id}`).update({ 'location/address': newAddress, status: 'Pending' });
 
-                    await sendMessage(from, `✅ *Location Saved: ${newAddress}*\n\nReport ID: ${reportData.id} is now LIVE.`);
+                    await sendMessage(from, `✅ *Location Saved: ${newAddress}*\n\nReport ID: ${reportData.id}\nStatus: Verification Pending.\n\n(We will notify you when verified)`);
                     return res.send('OK');
                 }
             }
@@ -281,7 +290,7 @@ exports.handleWebhook = async (req, res) => {
             }
 
             // Create Report Object
-            const reportId = `REP-${Date.now()}`;
+            const reportId = uuidv4();
             const caption = message.caption || message.text?.body || aiResult.description || "Report via WhatsApp";
 
             // Find User Map
@@ -314,7 +323,7 @@ exports.handleWebhook = async (req, res) => {
             await db.ref(`reports/by_department/${deptKey}/${reportId}`).set(newReport);
 
             await sendMessage(from,
-                `✅ *Report Accepted: ${newReport.type}*\nSeverity: ${newReport.priority}\n\n📍 *Action Required:* Please REPLY with the *Address/Location* to finalize this report.`
+                `✅ *Verified & Accepted*\n\nIssue: ${newReport.type}\nSeverity: ${newReport.priority}\n\nYour report has been sent to the authorities!\n\n📍 *Action Required:* Please reply with the *Location/Address* to finalize.`
             );
             return res.send('OK');
         }

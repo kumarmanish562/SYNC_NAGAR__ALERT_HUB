@@ -17,7 +17,8 @@ const MyReports = () => {
                 return;
             }
 
-            const url = `http://127.0.0.1:5001/api/reports/user/${auth.currentUser.uid}`;
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+            const url = `${API_BASE_URL}/api/reports/user/${auth.currentUser.uid}`;
             console.log(`[FRONTEND] Fetching reports from: ${url}`);
 
             try {

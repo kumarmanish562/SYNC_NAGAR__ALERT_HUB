@@ -24,7 +24,28 @@ const IncidentList = () => {
 
         const db = getDatabase();
         const sanitizedDept = sanitizeKey(currentUser.department);
-        const deptReportsRef = ref(db, `reports/by_department/${sanitizedDept}`);
+        // const deptReportsRef = ref(db, `reports/by_department/${sanitizedDept}`);
+        const deptReportsRef = ref(db, `reports`); // MATCH DASHBOARD LOGIC (LISTEN TO EVERYTHING)
+
+        // 1. Initial API Fetch (Fallback)
+        const fetchFromApi = async () => {
+            try {
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+                // Fetch ALL reports to match Dashboard
+                const res = await fetch(`${API_BASE_URL}/api/reports`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.reports) {
+                        setIncidents(data.reports);
+                    }
+                }
+            } catch (err) {
+                console.error("API Fetch Error:", err);
+            }
+            setLoading(false);
+        };
+
+        fetchFromApi();
 
         const unsubscribe = onValue(deptReportsRef, (snapshot) => {
             if (snapshot.exists()) {
@@ -34,10 +55,9 @@ const IncidentList = () => {
                     ...data[key]
                 })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
                 setIncidents(list);
-            } else {
-                setIncidents([]);
             }
-            setLoading(false);
+            // Don't clear incidents if RTDB fails/empty but API worked, strictly speaking strict RTDB would clear it.
+            // But for consistency with Dashboard which accumulates/overwrites:
         });
 
         return () => unsubscribe();
